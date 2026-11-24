@@ -1,0 +1,280 @@
+/* optiMAX PWA. Lo único llamativo es la plancha: la plantilla dibujada en «tiza» sobre chapa de acero, con sus
+   cotas. El resto, papel claro y tinta, para que se lea bien en el celular y al sol. */
+
+@font-face { font-family: "Barlow"; font-weight: 400; font-display: swap; src: url("fuentes/barlow-latin-400-normal.woff2") format("woff2"); }
+@font-face { font-family: "Barlow"; font-weight: 600; font-display: swap; src: url("fuentes/barlow-latin-600-normal.woff2") format("woff2"); }
+@font-face { font-family: "Barlow"; font-weight: 700; font-display: swap; src: url("fuentes/barlow-latin-700-normal.woff2") format("woff2"); }
+@font-face { font-family: "Barlow SC"; font-weight: 500; font-display: swap; src: url("fuentes/barlow-semi-condensed-latin-500-normal.woff2") format("woff2"); }
+@font-face { font-family: "Barlow SC"; font-weight: 600; font-display: swap; src: url("fuentes/barlow-semi-condensed-latin-600-normal.woff2") format("woff2"); }
+
+:root {
+  --papel: #edf0f3;
+  --hoja: #ffffff;
+  --tinta: #1a2129;
+  --gris: #5b6675;
+  --linea: #d3d9e0;
+  --rojo: #e00000;          /* el rojo del logo: compra y PRO */
+  --rojo-osc: #b30000;
+  --acero: #3c4752;
+  --acero-claro: #4a5662;
+  --tiza: #f3f5f1;
+  --marca: #ff8f80;
+  --pliegue: #ffd166;
+  --cota: #b8c6d3;
+  --foco: #3b82f6;
+  --verde-wa: #1a9e4f;
+  --tile: #e9edf2;          /* fondo de las imágenes de figura */
+  --num: "Barlow SC", "Barlow", system-ui, sans-serif;
+  color-scheme: light;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--papel);
+  color: var(--tinta);
+  font: 400 16px/1.4 "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+button, input { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 3px solid var(--foco); outline-offset: 2px; }
+[hidden] { display: none !important; }
+
+/* ------------------------------------------------------------ cabecera */
+.cabecera {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: calc(10px + env(safe-area-inset-top)) 16px 10px;
+}
+.logo { height: 26px; width: auto; display: block; }
+.btn-pro {
+  background: var(--rojo); color: #fff; border: 0; border-radius: 6px;
+  font-weight: 600; font-size: 15px; padding: 9px 14px; min-height: 40px;
+}
+.btn-pro:hover { background: var(--rojo-osc); }
+
+.aviso-ios {
+  display: flex; align-items: flex-start; gap: 8px;
+  margin: 0 16px 10px; padding: 10px 12px; background: var(--hoja); border: 1px solid var(--linea); border-radius: 8px;
+  font-size: 15px;
+}
+.aviso-ios p { margin: 0; flex: 1; }
+.cerrar {
+  border: 0; background: transparent; font-size: 26px; line-height: 1; width: 40px; height: 40px;
+  margin: -8px -8px -8px 0; color: var(--gris);
+}
+
+/* ------------------------------------------------------------ disposición */
+.app {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "figuras" "plancha" "chapas" "medidas" "acciones" "verificar";
+}
+.col-form, .col-vista { display: contents; }
+.figuras { grid-area: figuras; }
+.plancha { grid-area: plancha; }
+.chapas { grid-area: chapas; }
+.medidas { grid-area: medidas; }
+.acciones { grid-area: acciones; }
+.verificar { grid-area: verificar; }
+
+@media (min-width: 900px) {
+  .cabecera { padding-inline: 28px; }
+  .app {
+    grid-template-columns: 400px minmax(0, 1fr);
+    grid-template-rows: auto auto auto auto 1fr;
+    grid-template-areas:
+      "figuras plancha"
+      "medidas plancha"
+      "medidas chapas"
+      "medidas acciones"
+      "medidas verificar";
+    column-gap: 28px;
+    padding: 0 28px 28px;
+    align-items: start;
+  }
+  .plancha { position: sticky; top: 12px; height: min(66vh, 640px); border-radius: 8px; }
+  .figuras { padding-inline: 0; }
+  .medidas { padding-inline: 0; }
+}
+
+/* ------------------------------------------------------------ tira de figuras */
+.figuras {
+  display: flex; gap: 8px; overflow-x: auto; padding: 2px 16px 14px;
+  scroll-snap-type: x proximity; scrollbar-width: none;
+}
+.figuras::-webkit-scrollbar { display: none; }
+@media (min-width: 900px) { .figuras { flex-wrap: wrap; overflow: visible; } }
+.fig {
+  flex: 0 0 auto; width: 104px; padding: 0 0 6px; border: 0; background: transparent;
+  display: flex; flex-direction: column; align-items: center; gap: 5px; scroll-snap-align: start;
+  border-bottom: 3px solid transparent; border-radius: 0;
+  font-size: 14px; line-height: 1.15; text-align: center; color: var(--gris);
+}
+.fig img { width: 104px; height: 78px; border-radius: 6px; background: var(--tile); display: block; }
+.fig.elegida { border-bottom-color: var(--rojo); color: var(--tinta); font-weight: 600; }
+.fig.elegida img { box-shadow: 0 0 0 1px #c5ccd5; }
+.fig-pro { justify-content: center; }
+.fig-pro .mas-n {
+  width: 104px; height: 78px; border-radius: 6px; border: 1.5px dashed #b9c1cb;
+  display: grid; place-items: center; font: 600 30px/1 var(--num); color: var(--rojo);
+}
+
+/* ------------------------------------------------------------ la plancha */
+.plancha {
+  position: relative; height: max(280px, 46vh); overflow: hidden;
+  background:
+    repeating-linear-gradient(90deg, rgb(255 255 255 / .022) 0 1px, transparent 1px 3px),
+    repeating-linear-gradient(90deg, rgb(0 0 0 / .05) 0 2px, transparent 2px 17px),
+    linear-gradient(180deg, var(--acero-claro), var(--acero));
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / .25), inset 0 1px 0 rgb(255 255 255 / .06);
+}
+#vista { width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
+#vista:active { cursor: grabbing; }
+#vista .corte { fill: none; stroke: var(--tiza); stroke-width: 1.8; stroke-linejoin: round; }
+#vista .marcas { fill: none; stroke: var(--marca); stroke-width: 1.6; }
+#vista .plegado { fill: none; stroke: var(--pliegue); stroke-width: 1.4; stroke-dasharray: 7 4; }
+#vista .cota { fill: none; stroke: var(--cota); stroke-width: 1.1; }
+#vista .aux { fill: none; stroke: var(--cota); stroke-width: .8; opacity: .5; }
+#vista text { font-family: var(--num); paint-order: stroke; stroke: var(--acero); stroke-width: 4px; stroke-linejoin: round; }
+#vista .txt-cota { fill: var(--cota); font-size: 14px; font-weight: 600; }
+#vista .txt-nombre { fill: var(--tiza); font-size: 14px; font-weight: 500; }
+#vista .txt-cant { fill: var(--cota); }
+.plancha.con-error #vista { opacity: .18; }
+
+.error {
+  position: absolute; left: 16px; right: 16px; top: 50%; transform: translateY(-50%);
+  max-width: 460px; margin: 0 auto; padding: 12px 14px;
+  background: var(--hoja); color: var(--tinta); border-left: 4px solid var(--rojo); border-radius: 4px;
+  font-size: 15px; box-shadow: 0 6px 20px rgb(0 0 0 / .25);
+}
+.zoom { position: absolute; right: 10px; bottom: 10px; display: flex; gap: 6px; }
+.zoom button {
+  width: 40px; height: 40px; border-radius: 6px; border: 1px solid rgb(255 255 255 / .16);
+  background: rgb(20 26 32 / .55); color: var(--tiza); font-size: 20px; line-height: 1;
+}
+.unidades { position: absolute; left: 12px; bottom: 10px; margin: 0; font: 500 13px var(--num); color: var(--cota); }
+
+/* ------------------------------------------------------------ chapas */
+.chapas { list-style: none; margin: 0; padding: 4px 16px 0; }
+.chapas li {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 12px;
+  padding: 9px 0; border-bottom: 1px solid var(--linea);
+}
+.ch-nom { font-weight: 600; overflow-wrap: anywhere; }
+.ch-cant { font: 600 16px var(--num); justify-self: end; }
+.ch-med, .ch-peso { font: 500 15px var(--num); color: var(--gris); }
+.ch-peso { justify-self: end; }
+.ch-total .ch-nom { font-weight: 400; color: var(--gris); }
+.ch-total .ch-peso { color: var(--tinta); font-weight: 600; }
+.chapas::after { content: attr(data-nota); display: block; padding: 6px 0 0; font-size: 13px; color: var(--gris); }
+@media (min-width: 900px) { .chapas { padding: 10px 0 0; } }
+
+/* ------------------------------------------------------------ medidas */
+.medidas { padding: 18px 16px 4px; }
+.titulo-figura { margin: 0 0 10px; font-size: 22px; line-height: 1.15; font-weight: 700; }
+#form { display: flex; flex-direction: column; }
+.campo {
+  display: grid; grid-template-columns: minmax(0, 1fr) 132px; align-items: center; column-gap: 12px;
+  padding: 7px 0; border-bottom: 1px solid var(--linea);
+}
+.rotulo { font-size: 15px; line-height: 1.2; }
+.entrada {
+  display: flex; align-items: center; height: 44px; background: var(--hoja);
+  border: 1px solid #c3cbd4; border-radius: 6px; overflow: hidden;
+}
+.entrada:focus-within { border-color: var(--foco); box-shadow: 0 0 0 2px rgb(59 130 246 / .25); }
+.entrada input {
+  flex: 1; min-width: 0; height: 100%; border: 0; background: transparent; padding: 0 4px 0 10px;
+  font: 600 18px var(--num); text-align: right; outline: none;
+}
+.unidad { padding: 0 10px 0 4px; color: var(--gris); font: 500 15px var(--num); }
+.campo.mal .entrada { border-color: var(--rojo); box-shadow: 0 0 0 2px rgb(224 0 0 / .15); }
+.campo.mal .rotulo { color: var(--rojo-osc); }
+.campo-opcion { grid-template-columns: minmax(0, 1fr); row-gap: 6px; }
+.segmentos { display: flex; border: 1px solid #c3cbd4; border-radius: 6px; overflow: hidden; background: var(--hoja); }
+.segmentos label { flex: 1; position: relative; }
+.segmentos input { position: absolute; opacity: 0; inset: 0; margin: 0; }
+.segmentos span {
+  display: grid; place-items: center; min-height: 42px; padding: 0 8px; font-size: 15px;
+  border-left: 1px solid #dbe0e6;
+}
+.segmentos label:first-child span { border-left: 0; }
+.segmentos input:checked + span { background: var(--tinta); color: #fff; font-weight: 600; }
+.segmentos input:focus-visible + span { outline: 3px solid var(--foco); outline-offset: -3px; }
+.campo-espesor { margin-top: 14px; border-top: 1px solid var(--linea); }
+.campo-espesor .rotulo { font-weight: 600; }
+
+/* ------------------------------------------------------------ acciones PRO */
+.acciones { display: flex; gap: 8px; padding: 16px 16px 0; flex-wrap: wrap; }
+.btn-bloq {
+  flex: 1 1 220px; display: flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 48px; padding: 0 12px; border: 1.5px solid var(--tinta); border-radius: 6px; background: transparent;
+  font-weight: 600; font-size: 15px;
+}
+.btn-bloq:hover { background: var(--hoja); }
+.candado {
+  width: 12px; height: 10px; border-radius: 2px; background: currentColor; position: relative; margin-top: 4px;
+}
+.candado::before {
+  content: ""; position: absolute; left: 2px; top: -6px; width: 8px; height: 8px;
+  border: 2px solid currentColor; border-bottom: 0; border-radius: 5px 5px 0 0; box-sizing: border-box;
+}
+.tag { font-size: 12px; font-weight: 700; color: #fff; background: var(--rojo); border-radius: 3px; padding: 1px 5px; }
+.verificar { margin: 12px 16px 0; font-size: 14px; color: var(--gris); }
+@media (min-width: 900px) { .acciones { padding-inline: 0; } .verificar { margin-inline: 0; } }
+
+/* ------------------------------------------------------------ pie */
+.pie {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px;
+  margin-top: 28px; padding: 16px 16px 24px; border-top: 1px solid var(--linea); font-size: 14px; color: var(--gris);
+}
+.pie a { color: var(--tinta); font-weight: 600; }
+.btn-instalar { border: 1px solid var(--tinta); background: transparent; border-radius: 6px; padding: 6px 12px; font-weight: 600; }
+@media (min-width: 900px) { .pie { padding-inline: 28px; } }
+
+/* ------------------------------------------------------------ hoja de compra */
+.hoja-pro {
+  border: 0; padding: 0; background: transparent; max-width: none; max-height: none;
+  width: 100%; margin: auto auto 0; color: var(--tinta);
+}
+.hoja-pro::backdrop { background: rgb(15 20 26 / .55); }
+.hoja {
+  position: relative; background: var(--hoja); border-radius: 14px 14px 0 0;
+  padding: 20px 18px calc(18px + env(safe-area-inset-bottom)); max-height: 88vh; overflow-y: auto;
+}
+.hoja-pro[open] .hoja { animation: subir .22s ease-out; }
+@keyframes subir { from { transform: translateY(24px); opacity: .6; } }
+@media (prefers-reduced-motion: reduce) { .hoja-pro[open] .hoja { animation: none; } }
+@media (min-width: 600px) {
+  .hoja-pro { width: 460px; margin: auto; }
+  .hoja { border-radius: 12px; }
+}
+.hoja .cerrar { position: absolute; right: 14px; top: 14px; margin: 0; }
+.hoja h2 { margin: 0 40px 6px 0; font-size: 24px; font-weight: 700; }
+.hoja p { margin: 0 0 12px; }
+.pro-figuras-tit { color: var(--gris); font-size: 15px; }
+.pro-figuras {
+  list-style: none; margin: 0 0 16px; padding: 0;
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px 8px;
+}
+.pro-figuras li { display: flex; flex-direction: column; gap: 4px; font-size: 12px; line-height: 1.15; color: var(--gris); }
+.pro-figuras img { width: 100%; height: auto; border-radius: 5px; background: var(--tile); }
+.btn-whatsapp {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  min-height: 52px; border-radius: 8px; background: var(--verde-wa); color: #fff;
+  font-weight: 700; font-size: 17px; text-decoration: none;
+}
+.btn-whatsapp svg { width: 24px; height: 24px; fill: currentColor; }
+.btn-whatsapp:hover { background: #158a43; }
+.enlace-web { display: block; text-align: center; margin-top: 12px; color: var(--tinta); font-weight: 600; }
+
+/* ------------------------------------------------------------ imprimir: es PRO */
+@media print {
+  body > * { display: none !important; }
+  body::after {
+    content: "Imprimir la plantilla a escala es de optiMAX PRO. Más información en optimax.lat";
+    display: block; padding: 40px; font: 600 18px "Barlow", sans-serif;
+  }
+}
