@@ -1,1 +1,0 @@
-/home/claude/optimax-pwa-pro
