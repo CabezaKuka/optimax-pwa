@@ -6,7 +6,7 @@ export const MODULOS = [
   {
     id: "chapa", oficio: "Chapa", icono: "chapa", disponible: true,
     nombre: "Desarrollos de chapa",
-    descripcion: "T de caño, codos por gajos, conos y fondos de tolva: la plantilla con sus medidas.",
+    descripcion: "T de caño, codos, conos, fondos de tolva, transiciones y hélices: la plantilla con sus medidas.",
     cargar: () => import("./modulos/chapa.js"),
   },
   {

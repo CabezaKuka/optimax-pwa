@@ -145,8 +145,8 @@ def pc(b, base, cap):
     ctx.close()
 
 
-def pro(b, base):
-    ctx = b.new_context(viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True)
+def pro(b, base, cap):
+    ctx = b.new_context(viewport={"width": 390, "height": 844}, device_scale_factor=2, is_mobile=True, has_touch=True)
     pg = ctx.new_page()
     errs = []
     pg.on("pageerror", lambda e: errs.append(str(e)))
@@ -156,6 +156,22 @@ def pro(b, base):
     pg.wait_for_selector("#chapas li")
     control(any(u.endswith("/pro/chapa/figuras.js") for u in pedidos), "PRO de desarrollo: carga pro/chapa/figuras.js")
     control(pg.is_hidden(".btn-pro"), "PRO: sin «Comprar PRO»")
+    # las 12 figuras habilitadas; cada PRO se calcula y se dibuja sin error
+    pg.click("#fig-actual")
+    pg.wait_for_selector("#hoja-figuras[open]")
+    control(pg.locator(".grilla-figs .fig-bloq").count() == 0, "PRO: ninguna figura bloqueada")
+    pg.keyboard.press("Escape")
+    for fid in ("t_rect_cil", "t_cil_rect", "codo_rect", "curva_directa_90", "curva_directa", "desvio_paralelo",
+                "transicion_rect_red", "helicoide"):
+        pg.click("#fig-actual")
+        pg.wait_for_selector("#hoja-figuras[open]")
+        pg.click(f".grilla-figs .fig[data-id={fid}]")
+        pg.wait_for_timeout(400)
+        n = pg.locator("#chapas li").count()
+        trazos = pg.evaluate("document.querySelector('#vista .corte')?.getAttribute('d').length || 0")
+        control(n >= 1 and trazos > 50 and pg.is_hidden("#error"), f"PRO: {fid} se calcula y se dibuja")
+        if cap:
+            pg.locator(".plancha").screenshot(path=f"{cap}/pro_{fid}.png")
     pg.goto(base + "?pro=0")
     pg.wait_for_selector(".inicio")
     control(pg.is_visible(".btn-pro"), "?pro=0: vuelve la DEMO")
@@ -180,7 +196,7 @@ def main():
             celular(b, base, a.capturas)
             pc(b, base, a.capturas)
             if os.path.isdir(os.path.join(RAIZ, "pro")):
-                pro(b, base)
+                pro(b, base, a.capturas)
             b.close()
     finally:
         srv.terminate()

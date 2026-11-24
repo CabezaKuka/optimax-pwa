@@ -101,28 +101,61 @@ button { cursor: pointer; }
 }
 
 /* ------------------------------------------------------------ inicio */
+/* un color por oficio: chapa = azul (el del ícono de optiMAX), herrería = ámbar (el de los módulos del programa de
+   PC), carpintería = verde */
+.of-chapa { --of: #2563eb; --of-suave: #dce7fd; }
+.of-herreria { --of: #c96a05; --of-suave: #fbe9d2; }
+.of-carpinteria { --of: #15803d; --of-suave: #d8f0df; }
+
 .inicio { max-width: 720px; margin: 0 auto; padding: 4px 16px 8px; }
-.inicio-tit { margin: 6px 0 14px; font-size: 26px; line-height: 1.15; font-weight: 700; }
-.oficio h2 { margin: 18px 0 6px; font-size: 15px; font-weight: 600; color: var(--gris); }
+.portada {
+  position: relative; display: flex; align-items: flex-end; justify-content: space-between; gap: 12px;
+  margin: 0 -16px 6px; padding: 22px 16px 18px; overflow: hidden; color: var(--tiza);
+  background:
+    repeating-linear-gradient(90deg, rgb(255 255 255 / .022) 0 1px, transparent 1px 3px),
+    repeating-linear-gradient(90deg, rgb(0 0 0 / .05) 0 2px, transparent 2px 17px),
+    linear-gradient(180deg, var(--acero-claro), var(--acero));
+}
+@media (min-width: 752px) { .portada { margin-inline: 0; border-radius: 10px; padding-inline: 22px; } }
+.portada-txt { position: relative; z-index: 1; }
+.inicio-tit { margin: 0 0 6px; font-size: 28px; line-height: 1.1; font-weight: 700; color: #fff; }
+.inicio-sub { margin: 0; font-size: 16px; color: var(--cota); }
+.portada-dib { flex: 0 0 auto; width: 150px; height: auto; margin: -6px -4px -8px 0; }
+.portada-dib .tz { fill: none; stroke: var(--tiza); stroke-width: 2.2; stroke-linejoin: round; }
+.portada-dib .mk { stroke: var(--marca); stroke-width: 2; }
+.portada-dib .ct { stroke: var(--cota); stroke-width: 1.4; fill: none; }
+@media (max-width: 380px) { .portada-dib { width: 110px; } }
+
+.oficio h2 {
+  display: flex; align-items: center; gap: 8px; margin: 20px 0 8px;
+  font-size: 16px; font-weight: 700; color: var(--of);
+}
+.oficio h2::before { content: ""; width: 10px; height: 10px; border-radius: 2px; background: var(--of); }
 .mods { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .mod {
   display: flex; align-items: center; gap: 14px; padding: 12px; border-radius: 8px;
-  background: var(--hoja); border: 1px solid var(--linea); color: var(--tinta); text-decoration: none;
+  background: var(--of-suave); border: 1px solid transparent; border-left: 5px solid var(--of);
+  color: var(--tinta); text-decoration: none;
 }
-a.mod:hover { border-color: #b9c1cb; }
-a.mod:active { background: #f6f7f9; }
+a.mod { box-shadow: 0 1px 0 rgb(0 0 0 / .06); }
+a.mod:hover { border-color: var(--of); }
+a.mod:active { filter: brightness(.97); }
 .mod-ico {
   flex: 0 0 56px; height: 56px; border-radius: 8px; display: grid; place-items: center;
-  background: var(--acero); color: var(--tiza);
+  background: var(--of); color: #fff;
 }
 .mod-ico svg { width: 38px; height: 38px; }
 .mod-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .mod-nom { font-weight: 700; font-size: 18px; line-height: 1.2; }
 .mod-desc { font-size: 15px; color: var(--gris); line-height: 1.3; }
-.mod-off { position: relative; color: var(--gris); background: transparent; border-style: dashed; }
-.mod-off .mod-ico { background: #c9d0d8; color: #fff; }
-.mod-off .mod-nom { color: var(--gris); }
-.pronto { margin-top: 2px; font-size: 13px; font-weight: 600; color: var(--gris); }
+.mod-off .mod-ico { opacity: .5; }
+.mod-off .mod-nom { color: #3c4652; }
+.pronto, .abrir {
+  align-self: flex-start; margin-top: 6px; padding: 2px 10px; border-radius: 12px;
+  font-size: 13px; font-weight: 700;
+}
+.pronto { color: var(--of); background: #fff; }
+.abrir { color: #fff; background: var(--of); padding: 4px 14px; font-size: 14px; }
 
 /* ------------------------------------------------------------ ubicación (← Inicio) */
 .migas { display: flex; align-items: center; gap: 10px; padding: 0 16px 8px; font-size: 15px; }
