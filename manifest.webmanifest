@@ -1,0 +1,16 @@
+{
+  "name": "optiMAX · Desarrollo de piezas de chapa",
+  "short_name": "optiMAX",
+  "description": "Desarrollos de chapa en el celular: T de caño, codo por gajos, cono y fondo de tolva.",
+  "lang": "es",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#edf0f3",
+  "theme_color": "#edf0f3",
+  "icons": [
+    { "src": "img/icono-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "img/icono-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}
