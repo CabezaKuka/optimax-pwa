@@ -168,14 +168,28 @@ export class Vista {
     return g.join("");
   }
 
+  /**
+   * Gestos. En la página (completa = false) la plancha no se apropia del dedo: un dedo baja por la página y un
+   * toque corto llama a alTocar (abre la pantalla completa); el mouse sí arrastra y Ctrl + rueda acerca.
+   * En pantalla completa: un dedo mueve, dos dedos acercan, la rueda acerca.
+   */
   _eventos() {
     const sv = this.svg;
+    this.completo = false;
+    this.alTocar = null;
     const pos = (e) => { const r = sv.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+    let toque = null;                                    // dedo en la página: ¿fue un toque o un desplazamiento?
     sv.addEventListener("pointerdown", (e) => {
+      if (!this.completo && e.pointerType !== "mouse") {
+        toque = { id: e.pointerId, x: e.clientX, y: e.clientY, t: performance.now() };
+        return;
+      }
+      if (e.pointerType === "mouse" && e.button !== 0) return;
       sv.setPointerCapture(e.pointerId);
       this._punteros.set(e.pointerId, pos(e));
     });
     sv.addEventListener("pointermove", (e) => {
+      if (toque && e.pointerId === toque.id && Math.hypot(e.clientX - toque.x, e.clientY - toque.y) > 10) toque = null;
       if (!this._punteros.has(e.pointerId)) return;
       const ant = this._punteros.get(e.pointerId), nue = pos(e);
       if (this._punteros.size === 1) {
@@ -189,15 +203,29 @@ export class Vista {
         if (d0 > 4) this.acercar(d1 / d0, (nue[0] + otro[0]) / 2, (nue[1] + otro[1]) / 2);
       }
     });
-    const soltar = (e) => this._punteros.delete(e.pointerId);
-    sv.addEventListener("pointerup", soltar);
-    sv.addEventListener("pointercancel", soltar);
+    sv.addEventListener("pointerup", (e) => {
+      this._punteros.delete(e.pointerId);
+      if (toque && e.pointerId === toque.id && performance.now() - toque.t < 500) this.alTocar?.();
+      toque = null;
+    });
+    sv.addEventListener("pointercancel", (e) => {          // el navegador tomó el dedo para desplazar la página
+      this._punteros.delete(e.pointerId);
+      toque = null;
+    });
     sv.addEventListener("wheel", (e) => {
+      if (!this.completo && !e.ctrlKey) return;          // en la página, la rueda baja por la página
       e.preventDefault();
       const [x, y] = pos(e);
       this.acercar(Math.exp(-e.deltaY * 0.0015), x, y);
     }, { passive: false });
     sv.addEventListener("dblclick", () => this.ajustar());
+  }
+
+  /** Pantalla completa sí / no (lo pone la interfaz; cambia los gestos). */
+  modoCompleto(si) {
+    this.completo = si;
+    this._punteros.clear();
+    this.ajustar(false);
   }
 }
 

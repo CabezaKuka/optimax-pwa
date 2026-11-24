@@ -263,6 +263,33 @@ function armarInstalacion() {
 $("#z-mas").addEventListener("click", () => vista.acercar(1.4));
 $("#z-menos").addEventListener("click", () => vista.acercar(1 / 1.4));
 $("#z-ajustar").addEventListener("click", () => vista.ajustar());
+
+// ------------------------------------------------------------------ plancha a pantalla completa
+// En la página, la plancha no toma el dedo (se baja por la página como siempre). Para ver de cerca: tocarla o
+// «Ampliar» → pantalla completa, donde un dedo mueve y dos dedos acercan. «Cerrar», Esc o el botón atrás de
+// Android vuelven.
+function abrirCompleta() {
+  const pl = $(".plancha");
+  if (pl.classList.contains("completa")) return;
+  pl.classList.add("completa");
+  document.body.classList.add("sin-scroll");
+  vista.modoCompleto(true);
+  history.pushState({ completa: true }, "");
+  $("#z-cerrar").focus({ preventScroll: true });
+}
+function cerrarCompleta(desdeHistorial = false) {
+  const pl = $(".plancha");
+  if (!pl.classList.contains("completa")) return;
+  pl.classList.remove("completa");
+  document.body.classList.remove("sin-scroll");
+  vista.modoCompleto(false);
+  if (!desdeHistorial && history.state?.completa) history.back();
+}
+vista.alTocar = abrirCompleta;
+$("#z-ampliar").addEventListener("click", abrirCompleta);
+$("#z-cerrar").addEventListener("click", () => cerrarCompleta());
+addEventListener("popstate", () => cerrarCompleta(true));
+addEventListener("keydown", (e) => { if (e.key === "Escape") cerrarCompleta(); });
 $("#form").addEventListener("submit", (e) => e.preventDefault());
 
 armarFiguras();
