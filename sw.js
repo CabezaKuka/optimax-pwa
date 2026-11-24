@@ -1,8 +1,9 @@
 // Service worker: guarda la app para que ande sin internet. Al cambiar cualquier archivo, subir VERSION
 // (si no, los que ya la tienen siguen viendo la vieja hasta que se borre la caché).
-const VERSION = "optimax-pwa-2";
+const VERSION = "optimax-pwa-3";
 const ARCHIVOS = [
   "./", "index.html", "app.css", "app.js", "vista.js", "manifest.webmanifest",
+  "modulos.js", "inicio.js", "iconos.js", "licencia.js", "hoja-pro.js", "modulos/chapa.js",
   "geo/base.js", "geo/index.js", "geo/medidas.js",
   "geo/t_cil_cil.js", "geo/codo_sectores.js", "geo/tronco_cono.js", "geo/tronco_piramide.js",
   "fuentes/barlow-latin-400-normal.woff2", "fuentes/barlow-latin-600-normal.woff2",
@@ -24,7 +25,8 @@ self.addEventListener("activate", (e) => {
     .then(() => self.clients.claim()));
 });
 
-// primero la caché (anda sin internet); lo que no está, de la red
+// primero la caché (anda sin internet); lo que no está, de la red. El código PRO (pro/) no se guarda acá: en la
+// fase de licencias lo guarda licencia.js después de verificar el certificado.
 self.addEventListener("fetch", (e) => {
   const req = e.request;
   if (req.method !== "GET" || new URL(req.url).origin !== location.origin) return;

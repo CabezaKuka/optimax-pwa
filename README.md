@@ -9,7 +9,13 @@ No tiene paso de compilación.
 
 ## Archivos
 ```
-index.html, app.css, app.js   interfaz
+index.html, app.css           cabecera, «← Inicio», hoja de compra, pie (el contenido lo pone cada pantalla)
+app.js                        arranque y rutas (#inicio, #chapa, …), instalar, service worker
+modulos.js                    módulos por oficio (disponible = false → «Próximamente» en el inicio)
+inicio.js                     pantalla de inicio
+modulos/chapa.js              módulo Chapa (figura, medidas, plancha, lista de chapas)
+licencia.js                   esPro() y cargarPro(): la licencia se conecta al final (Railway)
+hoja-pro.js, iconos.js        hoja de compra; íconos de los módulos
 vista.js                      dibujo de la plancha (SVG), cotas, zoom y desplazamiento
 geo/                          geometría (port del escritorio: desarrollos/*.py es la fuente de verdad)
   base.js                     Param, PiezaGen, números como Python (redondeo, coma decimal), triangulación
@@ -25,9 +31,15 @@ tests/comparar.mjs            compara la geometría JS contra tests/casos.json
 
 ## Probar
 ```
-node tests/comparar.mjs                                  # 49 de 49 OK
+node tests/comparar.mjs                                  # geometría contra el escritorio: 49 de 49 OK
+python tests/navegador.py                                # recorridos en Chrome (celular y PC)
 python -m http.server 8000                               # y abrir http://localhost:8000
 ```
+
+## Código PRO
+Vive en el repo privado **CabezaKuka/optimax-pwa-pro** (este repo es público). En desarrollo se clona o enlaza en
+`pro/` (ignorado por git) y se prende con `http://localhost:8000/?pro=1` (`?pro=0` la apaga; solo en localhost).
+Publicada, `esPro()` da false hasta que se conecte el servidor de licencias.
 Si cambia una figura en el escritorio: `python tools/volcar_casos.py RUTA/nesting-cnc` y volver a comparar.
 
 ## Diferencias conocidas con el escritorio
