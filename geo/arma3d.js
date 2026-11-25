@@ -80,6 +80,9 @@ export function bandasConHueco(L, W, hueco, columnas = 240) {
   const alturas = new Set();
   for (let k = 0; k <= columnas; k++) alturas.add((W * k) / columnas);
   for (const y of ys) alturas.add(y);                          // pasa justo por cada vértice del agujero
+  // y pegado afuera de lo más alto y lo más bajo: un agujero de borde recto (rectángulo) abre de golpe, sin cuña
+  const eps = Math.max(W, L) * 1e-7;
+  alturas.add(ymin - eps).add(ymax + eps);
   const lista = [...alturas].filter((y) => y >= 0 && y <= W).sort((a, b) => a - b);
   const izq = [], der = [], sin = [];
   for (const y of lista) {

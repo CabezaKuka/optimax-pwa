@@ -603,7 +603,17 @@ def pro(b, base, cap):
         n = pg.locator("#chapas li").count()
         trazos = pg.evaluate("document.querySelector('#vista .corte')?.getAttribute('d').length || 0")
         control(n >= 1 and trazos > 50 and pg.is_hidden("#error"), f"PRO: {fid} se calcula y se dibuja")
-        control(pg.is_hidden("#z-3d"), f"PRO: {fid} sin 3D todavía (sin botón)")
+        # 3D (Tarea B, 25-nov): una pieza 3D por chapa a cortar
+        chapas = sum(int(t.strip("×")) for t in pg.locator("#chapas li .ch-cant").all_inner_texts())
+        control(pg.is_visible("#z-3d"), f"PRO: {fid} con botón 3D")
+        pg.click("#z-3d")
+        pg.wait_for_selector(".p-3d[data-triangulos]", timeout=15000)
+        pg.wait_for_timeout(600)
+        n3 = int(pg.get_attribute(".p-3d", "data-piezas"))
+        control(n3 == chapas and pg.locator(".p-3d .error-txt").count() == 0, f"PRO 3D {fid}: {n3} piezas de {chapas} chapas")
+        if cap:
+            pg.screenshot(path=f"{cap}/pro_3d_{fid}.png")
+        pg.click(".p-3d .p-c-cerrar")
         if cap:
             pg.locator(".plancha").screenshot(path=f"{cap}/pro_{fid}.png")
     # imprimir a escala (la última figura: helicoide): hojas A4 y una sola hoja
