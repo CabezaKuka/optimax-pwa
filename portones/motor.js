@@ -38,7 +38,11 @@ export const ITEM_DEF = {
   relleno: "verticales", luz_max: 100.0, angulo: 45.0, n_trav: 1, armado: "a_tope", holg_lat: 10.0, holg_centro: 10.0,
   luz_piso: 30.0, solape: 100.0, esp_chapa: 1.5,
   trav_lado: "adelante",            // solo PWA (pasantes): el travesaño adelante o atrás de los barrotes (3D y dibujo)
+  chapa_trav: "atras",              // solo PWA (chapa ciega): travesaños atrás de la chapa (una pieza) o a tope (paños)
+  cruce: "cruzadas",                // solo PWA (cuadrícula, rombos): familias superpuestas o en el mismo plano (en tramos)
 };
+/** Claves del ítem que la PC no tiene (las ignora al abrir el .nesting). */
+export const SOLO_PWA = ["trav_lado", "chapa_trav", "cruce"];
 const ENTEROS = new Set(["cantidad", "n_trav"]);
 export const MAX_TRAV = 10;
 
@@ -53,6 +57,8 @@ export const INGLETE = [[45, 0], [45, 0], "T"];
 export const usaLuz = (r) => r !== "chapa" && r !== "cruz";
 export const usaAngulo = (r) => r === "diagonales" || r === "rombos";
 export const usaArmado = (r) => r !== "chapa" && r !== "cruz";
+/** Rellenos con dos familias que se cruzan (opción «Cruce»). */
+export const usaCruce = (r) => r === "cuadricula" || r === "rombos";
 
 /** round(x, n) de Python (correcto en los empates, como el escritorio). */
 export const red = (x, n) => Number(fijo(x, n));
@@ -419,10 +425,39 @@ function familiaDiagonal(R, perfil, theta, luz, bay, uso, recorte = null) {
   const smin = Math.min(...ss), smax = Math.max(...ss);
   const c = (smin + smax) / 2, paso = luz + perfil.a;
   const segs = [];
+  segs.offsets = [];                                    // posición (sobre n) de cada barra puesta
   for (let k = Math.floor((smin - c) / paso); k <= Math.ceil((smax - c) / paso); k++) {
     if (recorte && !piezaInclinada(R, perfil, c + k * paso, theta, planosRect(...bay), uso, true)) continue;
     const seg = piezaInclinada(R, perfil, c + k * paso, theta, planosRect(...(recorte || bay)), uso);
-    if (seg) segs.push(seg);
+    if (seg) { segs.push(seg); segs.offsets.push(c + k * paso); }
+  }
+  return segs;
+}
+
+/**
+ * Rombos en el mismo plano (PWA): la familia theta en tramos entre las barras de la otra familia (theta1, en las
+ * posiciones offs1), con el corte en ángulo contra cada barra. Mismas posiciones que familiaDiagonal.
+ */
+function familiaCortada(R, perfil, theta, luz, bay, uso, recorte, theta1, offs1) {
+  const [x0, y0, w, h] = bay;
+  const th = rad(theta), th1 = rad(theta1);
+  const n = [-Math.sin(th), Math.cos(th)], n1 = [-Math.sin(th1), Math.cos(th1)];
+  const ss = [[x0, y0], [x0 + w, y0], [x0, y0 + h], [x0 + w, y0 + h]].map(([x, y]) => n[0] * x + n[1] * y);
+  const smin = Math.min(...ss), smax = Math.max(...ss);
+  const c = (smin + smax) / 2, paso = luz + perfil.a, a2 = perfil.a / 2;
+  const cortes = [...offs1].sort((p, q) => p - q);
+  const segs = [];
+  for (let k = Math.floor((smin - c) / paso); k <= Math.ceil((smax - c) / paso); k++) {
+    const s = c + k * paso;
+    if (!piezaInclinada(R, perfil, s, theta, planosRect(...bay), uso, true)) continue;      // la barra no va
+    const base = planosRect(...(recorte || bay));
+    for (let i = 0; i <= cortes.length; i++) {
+      const pl = [...base];
+      if (i > 0) pl.push([-n1[0], -n1[1], -(cortes[i - 1] + a2)]);
+      if (i < cortes.length) pl.push([n1[0], n1[1], cortes[i] - a2]);
+      const seg = piezaInclinada(R, perfil, s, theta, pl, uso);
+      if (seg) segs.push(seg);
+    }
   }
   return segs;
 }
@@ -518,10 +553,13 @@ function hoja(x0, y0, W, H, it, pm, pr, nombre, R, espejo = false, pt = null) {
   const ladosTramo = (k) => (vertical ? [e, k === 0 ? e : 0, e, k === n ? e : 0] : [k === 0 ? e : 0, e, k === n ? e : 0, e]);
 
   if (relleno === "chapa") {
-    const cw = iw + 2 * e, ch = ih + 2 * e;
-    rect(R, "CHAPA", ix - e, iy - e, cw, ch);
-    R.chapas.push([cw, ch, it.esp_chapa]);
-    R.soldadura_extra_mm += 2 * (cw + ch) * 0.3;        // puntos / cordones intermitentes ≈ 30 % del contorno
+    // atrás (por defecto, como la PC): una sola chapa y los travesaños detrás; a tope (PWA): un paño por tramo
+    const panos = it.chapa_trav === "a_tope" && n > 0 ? tramos.map((z, k) => ampliar(z, ladosTramo(k))) : [[ix - e, iy - e, iw + 2 * e, ih + 2 * e]];
+    for (const [cx, cy, cw, ch] of panos) {
+      rect(R, "CHAPA", cx, cy, cw, ch);
+      R.chapas.push([cw, ch, it.esp_chapa]);
+      R.soldadura_extra_mm += 2 * (cw + ch) * 0.3;      // puntos / cordones intermitentes ≈ 30 % del contorno
+    }
     return;
   }
 
@@ -564,8 +602,13 @@ function hoja(x0, y0, W, H, it, pm, pr, nombre, R, espejo = false, pt = null) {
     for (const [k, bay] of zonas.entries()) {
       const rec = e ? ampliar(bay, lados[k]) : null;
       const s1 = familiaDiagonal(R, pr, it.angulo, luzMax, bay, "rombo", rec);
-      const s2 = familiaDiagonal(R, pr, 180 - it.angulo, luzMax, bay, "rombo", rec);
-      R.soldadura_extra_mm += cruces(s1, s2) * punto;
+      let s2;
+      if (it.cruce === "plano") {                       // mismo plano: la 2.ª familia en tramos (juntas, sin cruces)
+        s2 = familiaCortada(R, pr, 180 - it.angulo, luzMax, bay, "rombo en tramos", rec, it.angulo, s1.offsets);
+      } else {
+        s2 = familiaDiagonal(R, pr, 180 - it.angulo, luzMax, bay, "rombo", rec);
+        R.soldadura_extra_mm += cruces(s1, s2) * punto;
+      }
       ejes = ejes.concat(s1, s2);
       if (s1.length || s2.length) R.luces.push(luzMax);
     }
@@ -579,20 +622,31 @@ function hoja(x0, y0, W, H, it, pm, pr, nombre, R, espejo = false, pt = null) {
         rect(R, "BARRA", x, ty - eB, pr.a, th + eB + eT, pr, th + eB + eT);
         ejes.push([[x + pr.a / 2, ty - eB], [x + pr.a / 2, ty + th + eT]]);
       }
+      const plano = it.cruce === "plano" && nv > 0;     // mismo plano: horizontales en tramos entre los verticales
+      // tramos de cada horizontal: [x de inicio, largo]
+      const xs = Array.from({ length: nv }, (_, i) => tx + luzv + i * (pr.a + luzv));
+      const tramosH = plano ? [[tx - eL, luzv + eL], ...xs.slice(0, -1).map((x) => [x + pr.a, luzv]), [xs[nv - 1] + pr.a, luzv + eR]]
+        : [[tx - eL, tw + eL + eR]];
       for (let j = 0; j < nh; j++) {
         const y = ty + luzh + j * (pr.a + luzh);
-        rect(R, "BARRA", tx - eL, y, tw + eL + eR, pr.a, pr, tw + eL + eR);
-        ejes.push([[tx - eL, y + pr.a / 2], [tx + tw + eR, y + pr.a / 2]]);
+        for (const [hx, hl] of tramosH) {
+          rect(R, "BARRA", hx, y, hl, pr.a, pr, hl);
+          ejes.push([[hx, y + pr.a / 2], [hx + hl, y + pr.a / 2]]);
+        }
       }
       if (nv) {
         R.piezas.push({ perfil: pr, largo: red(th + eB + eT, 1), corte: RECTO, cant: nv, uso: "cuadrícula vertical" });
         R.juntas.push([pr, 2 * nv]);
       }
       if (nh) {
-        R.piezas.push({ perfil: pr, largo: red(tw + eL + eR, 1), corte: RECTO, cant: nh, uso: "cuadrícula horizontal" });
-        R.juntas.push([pr, 2 * nh]);
+        const porLargo = new Map();
+        for (const [, hl] of tramosH) porLargo.set(red(hl, 1), (porLargo.get(red(hl, 1)) || 0) + nh);
+        for (const [hl, q] of porLargo) {
+          R.piezas.push({ perfil: pr, largo: hl, corte: RECTO, cant: q, uso: plano ? "cuadrícula horizontal en tramos" : "cuadrícula horizontal" });
+          R.juntas.push([pr, 2 * q]);
+        }
       }
-      R.soldadura_extra_mm += nv * nh * punto;
+      if (!plano) R.soldadura_extra_mm += nv * nh * punto;
       R.luces.push(luzv, luzh);
     }
   } else {                                              // barrotes verticales u horizontales
@@ -856,7 +910,7 @@ export function calcular(items, perfiles, corte = 3.0, optimizar = optimizarRapi
   return {
     filas, marcas, grupos, items, resultados, errores, avisos, corte,
     herrajes: [...herrajes.entries()].sort((a, b) => cmp(a[0], b[0])),
-    piezas: filas.reduce((s, f) => s + f.cant, 0), kg_chapa: kgChapa, m2_chapa: m2Chapa,
+    piezas: filas.reduce((s, f) => s + f.cant, 0), kg_chapa: kgChapa, m2_chapa: m2Chapa, chapas,
     kg_neto: grupos.reduce((s, g) => s + g.kg_neto, 0) + kgChapa,
     kg_compra: grupos.reduce((s, g) => s + g.kg_compra, 0) + kgChapa,
     sold_m: soldMm / 1000, pint_m2: pint, n_barras: grupos.reduce((s, g) => s + g.n_barras, 0),
