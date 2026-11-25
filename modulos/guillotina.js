@@ -72,7 +72,8 @@ function guardarPdf() {
     archivo: "Guillotina - plan de cortes.pdf",
     describir: () => `Hoja A4 apaisada por plancha (${r.n_planchas}), con los cortes numerados en orden y la lista de cortes; al final el control de piezas` +
       (precio > 0 ? " con el precio de cada una." : "."),
-    armar: () => salidaPdf.pdfGuillotina(r, { precioPlancha: precio > 0 ? precio : null, costos: precio > 0 ? pro.costear(r, precio, 0, est.reparto) : null }),
+    armar: () => salidaPdf.pdfGuillotina(r, { precioPlancha: precio > 0 ? precio : null, costos: precio > 0 ? pro.costear(r, precio, 0, est.reparto) : null,
+      material: planchaElegida()?.nombre || "" }),                  // un pro.bin viejo lo ignora
   });
 }
 
