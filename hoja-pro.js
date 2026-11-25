@@ -1,10 +1,12 @@
 // Hoja de compra de la PRO (se abre desde cualquier botón con data-abre-pro="<motivo>").
 // Cada módulo puede sumar lo suyo con ponerContexto (ej. Chapa: las figuras PRO).
-// Abajo, «Ya compré: activar»: el código de este dispositivo (va en el mensaje de compra) y la clave.
-import { codigoDispositivo, activar } from "./licencia.js";
+// Abajo, «Ya compré: activar» → «Entrar con WhatsApp»: el bot da un código de un solo uso, se abre WhatsApp con el
+// mensaje para el bot y, cuando llega desde el número que compró, este equipo queda activado (licencia.js).
+import { pedirIngreso, consultarIngreso } from "./licencia.js";
 
 const WHATSAPP = "59177626675";
 const PRECIO = "25 USD";
+const CADA_MS = 2000;                    // consulta al bot mientras espera el mensaje
 
 const MOTIVOS = {
   imprimir: "El PDF de la pieza (plano con medidas y plantilla a escala para trazar) es de la versión PRO.",
@@ -18,21 +20,25 @@ const MOTIVOS = {
 };
 
 let contexto = { nombre: "", extra: "" };
+let ingreso = null;                      // {token, whatsapp, texto} del pedido en curso
+let reloj = null;
+let preparando = false;
 
 /** nombre: lo que estaba usando (va en el mensaje de WhatsApp); extra: HTML que se muestra en la hoja. */
 export function ponerContexto(nombre = "", extra = "") {
   contexto = { nombre, extra };
 }
 
+const $h = (s) => document.querySelector("#hoja-pro").querySelector(s);
+
 export function abrirPro(motivo = "") {
   const d = document.querySelector("#hoja-pro");
-  d.querySelector("#pro-motivo").textContent = MOTIVOS[motivo] ?? MOTIVOS[""];
-  d.querySelector("#pro-extra").innerHTML = contexto.extra;
-  const txt = `Hola, probé optiMAX en el celular${contexto.nombre ? ` (${contexto.nombre})` : ""} y quiero la versión PRO ` +
-    `(${PRECIO}). Código de mi dispositivo: ${codigoDispositivo()}`;
-  d.querySelector("#pro-codigo").textContent = codigoDispositivo();
-  d.querySelector("#btn-whatsapp").href = `https://wa.me/${WHATSAPP}?text=${encodeURIComponent(txt)}`;
+  $h("#pro-motivo").textContent = MOTIVOS[motivo] ?? MOTIVOS[""];
+  $h("#pro-extra").innerHTML = contexto.extra;
+  const txt = `Hola, probé optiMAX${contexto.nombre ? ` (${contexto.nombre})` : ""} y quiero la versión PRO (${PRECIO}).`;
+  $h("#btn-whatsapp").href = `https://wa.me/${WHATSAPP}?text=${encodeURIComponent(txt)}`;
   if (typeof d.showModal === "function") d.showModal(); else d.setAttribute("open", "");
+  if ($h("#pro-activar").open) prepararIngreso();
 }
 
 export function armarHojaPro() {
@@ -42,47 +48,94 @@ export function armarHojaPro() {
   });
   const d = document.querySelector("#hoja-pro");
   d.addEventListener("click", (e) => { if (e.target === d) d.close(); });   // tocar afuera cierra
-  d.querySelector("#pro-copiar").addEventListener("click", async (e) => {
-    try {
-      await navigator.clipboard.writeText(codigoDispositivo());
-      e.target.textContent = "Copiado";
-      setTimeout(() => { e.target.textContent = "Copiar"; }, 1500);
-    } catch { /* sin portapapeles: el código se ve igual */ }
+  d.addEventListener("close", parar);
+  $h("#pro-activar").addEventListener("toggle", (e) => { if (e.target.open) prepararIngreso(); else parar(); });
+  $h("#pro-entrar").addEventListener("click", (e) => {
+    if (!ingreso) { e.preventDefault(); return; }
+    mostrar("espera", "Mandá el mensaje que se abrió en WhatsApp y volvé acá. Esperando tu mensaje…");
+    esperar();
   });
-  d.querySelector("#pro-activar-btn").addEventListener("click", activarClave);
+  $h("#pro-listo").addEventListener("click", () => location.reload());     // los módulos se vuelven a armar con la PRO
+  // al volver de WhatsApp, consultar enseguida (en segundo plano el navegador frena los relojes)
+  document.addEventListener("visibilitychange", () => { if (!document.hidden && reloj) consultar(); });
 }
 
-async function activarClave() {
-  const d = document.querySelector("#hoja-pro");
-  const b = d.querySelector("#pro-activar-btn"), err = d.querySelector("#pro-error"), ok = d.querySelector("#pro-ok");
-  const clave = d.querySelector("#pro-clave").value.trim();
-  err.hidden = true;
-  if (!clave) {
-    err.textContent = "Pegá la clave que te mandamos por WhatsApp.";
-    err.hidden = false;
-    return;
+/** Muestra una sola línea de estado: espera | error | ok (o nada). */
+function mostrar(cual, texto = "") {
+  for (const k of ["espera", "error", "ok"]) {
+    const el = $h(`#pro-${k}`);
+    el.hidden = k !== cual;
+    if (k === cual) el.textContent = texto;
   }
-  b.disabled = true;
-  b.textContent = "Activando…";
+}
+
+function habilitar(si) {
+  const a = $h("#pro-entrar");
+  a.setAttribute("aria-disabled", si ? "false" : "true");
+  if (!si) a.href = "#";
+}
+
+/** Pide un código de un solo uso al bot y deja el botón apuntando a WhatsApp con el mensaje listo. */
+async function prepararIngreso() {
+  if (preparando || ingreso) return;
+  preparando = true;
+  habilitar(false);
   try {
-    const lic = await activar(clave);
-    ok.textContent = `✓ optiMAX PRO activada a nombre de ${lic.nombre}. Desde ahora anda también sin internet.`;
-    ok.hidden = false;
-    b.textContent = "Listo";
-    b.disabled = false;
-    b.onclick = () => location.reload();                 // los módulos se vuelven a armar con la PRO
-    b.removeEventListener("click", activarClave);
+    ingreso = await pedirIngreso();
+    $h("#pro-entrar").href = `https://wa.me/${ingreso.whatsapp}?text=${encodeURIComponent(ingreso.texto)}`;
+    habilitar(true);
   } catch (e) {
-    err.textContent = e.message;
-    err.hidden = false;
-    b.disabled = false;
-    b.textContent = "Activar";
+    mostrar("error", e.message);
+  } finally {
+    preparando = false;
+  }
+}
+
+function esperar() {
+  clearInterval(reloj);
+  reloj = setInterval(consultar, CADA_MS);
+}
+
+function parar() {
+  clearInterval(reloj);
+  reloj = null;
+}
+
+let consultando = false;
+async function consultar() {
+  if (!ingreso || consultando) return;
+  consultando = true;
+  try {
+    const r = await consultarIngreso(ingreso.token);
+    if (r === "pendiente") return;
+    parar();
+    if (r === "sin_licencia" || r === "vencido") {
+      ingreso = null;                                  // otro código para volver a intentar
+      mostrar("error", r === "vencido"
+        ? "El pedido venció. Tocá «Entrar con WhatsApp» de nuevo."
+        : "Ese número de WhatsApp no tiene optiMAX PRO. Si ya pagaste, avisanos y la habilitamos; si no, tocá «Consultar por WhatsApp».");
+      prepararIngreso();
+      return;
+    }
+    mostrar("ok", `✓ optiMAX PRO activada a nombre de ${r.nombre}. Desde ahora anda también sin internet.`);
+    $h("#pro-entrar").hidden = true;
+    $h("#pro-listo").hidden = false;
+    ingreso = null;
+  } catch (e) {
+    if (/Sin conexión/.test(e.message)) return;        // se reintenta solo en la próxima vuelta
+    parar();
+    ingreso = null;
+    mostrar("error", e.message);
+    prepararIngreso();
+  } finally {
+    consultando = false;
   }
 }
 
 /** Abre la hoja directo en «Ya compré: activar». */
 export function abrirActivar() {
   abrirPro("");
-  const d = document.querySelector("#hoja-pro");
-  d.querySelector("#pro-activar").open = true;
+  const det = $h("#pro-activar");
+  det.open = true;
+  prepararIngreso();
 }

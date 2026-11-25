@@ -572,6 +572,10 @@ body.sin-scroll { overflow: hidden; }
 }
 .activar .btn-prim { margin-top: 10px; }
 .pro-ok { color: #1f7a4d; font-weight: 600; }
+#pro-entrar[aria-disabled="true"] { opacity: .5; pointer-events: none; }
+#pro-entrar { margin-top: 6px; background: var(--hoja); color: var(--verde-wa); box-shadow: inset 0 0 0 2px var(--verde-wa); }
+#pro-entrar:hover { background: #eaf7ef; }
+.pro-espera { font-weight: 600; color: var(--tinta); }
 .aviso-lic { margin: 0; padding: 10px 16px; background: #fff3c4; font-size: 15px; }
 .pie-lic { font-weight: 600; color: var(--tinta); }
 
