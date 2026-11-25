@@ -217,4 +217,29 @@ export const TroncoPiramide = {
     }
     return piezas;
   },
+
+  /**
+   * Fondo armado en 3D (geo/arma3d.js): cada cara plana entre dos aristas (boca mayor arriba, a z = h). Una banda por
+   * pieza: sus generatrices son las aristas (las de las puntas y los pliegues), en la chapa ya alineada como se corta.
+   */
+  armado3D(v, t) {
+    const piezas = this.generar(v, t);
+    const [A, B, a, b] = this.neutro(v, t);
+    const [sup, inf] = vertices(A, B, a, b, v.x, v.y, v.h);
+    const n = v.partes, s0 = v.inicio, por = Math.trunc(4 / n);
+    const out = [];
+    for (let j = 0; j < n; j++) {
+      const orden = [];
+      for (let i = 0; i < por; i++) orden.push(s0 + j * por + i);
+      const [cont, pl] = desarrollar(sup, inf, orden);
+      const [c2] = alinear(cont, pl);                    // el mismo giro y corrimiento que la plantilla
+      const banda = [];
+      for (let i = 0; i <= por; i++) {
+        const k = mod(orden[0] + i, 4);
+        banda.push([c2[i], c2[c2.length - 1 - i], sup[k], inf[k]]);
+      }
+      out.push({ nombre: piezas[j].nombre, tono: "corte", bandas: [banda] });
+    }
+    return out;
+  },
 };

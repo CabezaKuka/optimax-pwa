@@ -66,6 +66,49 @@ export const TroncoCono = {
     return piezas;
   },
 
+  /**
+   * Cono armado en 3D (geo/arma3d.js), boca mayor abajo (z = 0) y menor arriba (z = h). Concéntrico: cada recta que
+   * sale del centro del sector es una generatriz del cono (ángulo × 2π / φ alrededor del eje). Excéntrico: las mismas
+   * bandas de la triangulación con la que se desarrolla.
+   */
+  armado3D(v, t) {
+    const piezas = this.generar(v, t);
+    const R1 = (v.d1 - t) / 2, R2 = this._r2(v, t), H = v.h;
+    const out = [];
+    if (v.exc === 0 && v.d1 !== v.d2) {
+      const s = Math.hypot(H, R1 - R2);
+      const Rg = (R1 * s) / (R1 - R2), Rs = (R2 * s) / (R1 - R2);
+      const phi = (2 * Math.PI * R1) / Rg;
+      const k = v.partes, M = Math.max(8, Math.ceil(N / k));
+      const en3d = (rho, a) => {
+        const w = (a * 2 * Math.PI) / phi, rad = (R1 * rho) / Rg;
+        return [rad * Math.cos(w), rad * Math.sin(w), ((Rg - rho) * H) / s];
+      };
+      for (let j = 0; j < k; j++) {
+        const a0 = -phi / 2 + (phi * j) / k, a1 = -phi / 2 + (phi * (j + 1)) / k;
+        const banda = [];
+        for (let i = 0; i <= M; i++) {
+          const a = a0 + ((a1 - a0) * i) / M;
+          banda.push([[Rg * Math.cos(a), Rg * Math.sin(a)], [Rs * Math.cos(a), Rs * Math.sin(a)], en3d(Rg, a), en3d(Rs, a)]);
+        }
+        out.push({ nombre: piezas[j].nombre, tono: "corte", bandas: [banda] });
+      }
+      return out;
+    }
+    const e = v.exc, c0 = (v.costura * Math.PI) / 180;
+    const P = [], Q = [];
+    for (let k = 0; k <= N; k++) {
+      const th = c0 + (2 * Math.PI * k) / N;
+      P.push([R1 * Math.cos(th), R1 * Math.sin(th), 0.0]);
+      Q.push([e + R2 * Math.cos(th), R2 * Math.sin(th), H]);
+    }
+    dividirRango(N, v.partes).forEach(([i0, i1], j) => {
+      const [p2, q2] = desplegarBanda(P.slice(i0, i1 + 1), Q.slice(i0, i1 + 1));
+      out.push({ nombre: piezas[j].nombre, tono: "corte", bandas: [p2.map((a, i) => [a, q2[i], P[i0 + i], Q[i0 + i]])] });
+    });
+    return out;
+  },
+
   _triangulado(v, t) {
     const R1 = (v.d1 - t) / 2, R2 = this._r2(v, t), H = v.h, e = v.exc;
     const c0 = (v.costura * Math.PI) / 180;

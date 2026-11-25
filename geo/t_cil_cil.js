@@ -1,6 +1,7 @@
 // T / injerto cilindro sobre cilindro (ángulo y excentricidad) + chapa del principal con agujero.
 // Port de desarrollos/t_cil_cil.py.
 import { Param, PiezaGen, dividirRango, fmt, fijo, trad, pyRound } from "./base.js";
+import { bandasConHueco, conMapa } from "./arma3d.js";
 
 const N = 360;
 
@@ -90,6 +91,55 @@ export const TCilCil = {
     });
     if (v.ppal === "Sí") piezas.push(this._principal(v, t, alfa, e));
     return piezas;
+  },
+
+  /**
+   * Pieza armada en 3D (geo/arma3d.js): el ramal enrollado sobre su caño (radio neutro) y el principal: su chapa con el
+   * agujero si se genera, si no el caño de referencia. Eje del principal = x, el ramal sube (z).
+   */
+  armado3D(v, t) {
+    const piezas = this.generar(v, t);                      // mismas validaciones (y mismos errores) que la plantilla
+    const alfa = (v.ang * Math.PI) / 180, e = v.exc;
+    const [r, R] = this.perfil(v, t);
+    const rn = (v.dr - t) / 2;
+    const W = Math.PI * (v.dr - t);
+    const c0 = (v.costura * Math.PI) / 180;
+    const xs = [], hs = [], th = [];
+    for (let k = 0; k <= N; k++) {
+      th.push(c0 + (2 * Math.PI * k) / N);
+      xs.push((W * k) / N);
+      hs.push(v.largo - tContacto(r, R, th[k], alfa, e));
+    }
+    const out = [];
+    dividirRango(N, v.partes).forEach(([i0, i1], j) => {
+      const banda = [];
+      for (let i = i0; i <= i1; i++) {
+        banda.push([[xs[i] - xs[i0], 0], [xs[i] - xs[i0], hs[i]],
+          punto3d(rn, th[i], v.largo, alfa, e), punto3d(rn, th[i], v.largo - hs[i], alfa, e)]);
+      }
+      out.push({ nombre: piezas[j].nombre, tono: "corte", bandas: [banda] });
+    });
+    // principal: x a lo largo del eje, y alrededor (φ desde arriba hacia +y), radio neutro
+    const Rn = (v.dp - t) / 2, Wp = 2 * Math.PI * Rn;
+    const enCano = (L) => ([x, y]) => {
+      const phi = (y - Wp / 2) / Rn;
+      return [x - L / 2, Rn * Math.sin(phi), Rn * Math.cos(phi)];
+    };
+    if (v.ppal === "Sí") {
+      const p = piezas[piezas.length - 1];
+      const hueco = p.ents.filter(([capa, tipo]) => capa === "CORTE" && tipo === "poly")[1][2][0];
+      const f = enCano(v.largo_ppal);
+      out.push({ nombre: p.nombre, tono: "corte", bandas: bandasConHueco(v.largo_ppal, Wp, hueco).map((b) => conMapa(b, f)) });
+    } else {
+      // de referencia: el largo de la chapa del principal, o más si el ramal no entra
+      const x = [];
+      for (let k = 0; k < N; k++) x.push(punto3d(r, th[k], tContacto(r, R, th[k], alfa, e), alfa, e)[0]);
+      const L = Math.max(v.largo_ppal, Math.max(...x) - Math.min(...x) + v.dp, 2 * (Math.max(...x.map(Math.abs)) + v.dp / 2));
+      const gens = [];
+      for (let k = 0; k <= 180; k++) gens.push([[0, (Wp * k) / 180], [L, (Wp * k) / 180]]);
+      out.push({ nombre: "Caño principal", tono: "ref", bandas: [conMapa(gens, enCano(L))] });
+    }
+    return out;
   },
 
   _principal(v, t, alfa, e) {

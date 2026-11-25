@@ -99,6 +99,35 @@ def celular(b, base, cap):
     pg.wait_for_timeout(500)
     control(pg.inner_text("#fig-nom") == "Cono / reducción", "grilla: elegir cono")
     control("Cono" in pg.inner_text("#chapas"), "grilla: lista del cono")
+    # 3D de las piezas armadas (25-nov): las 4 DEMO, una pieza 3D por chapa a cortar
+    for fid, extra in (("t_cil_cil", None), ("codo_sectores", None), ("tronco_cono", None), ("tronco_piramide", None),
+                       ("t_cil_cil", "ppal")):
+        pg.click("#fig-actual")
+        pg.wait_for_selector("#hoja-figuras[open]")
+        pg.click(f".grilla-figs .fig[data-id={fid}]")
+        pg.wait_for_timeout(500)
+        if extra == "ppal":
+            pg.check("input[name=ppal][value='Sí']")
+            pg.wait_for_timeout(500)
+        chapas = sum(int(t.strip("×")) for t in pg.locator("#chapas li .ch-cant").all_inner_texts())
+        control(pg.is_visible("#z-3d"), f"chapa 3D: botón en {fid}")
+        pg.click("#z-3d")
+        pg.wait_for_selector(".p-3d[data-triangulos]", timeout=15000)
+        pg.wait_for_timeout(700)
+        n = int(pg.get_attribute(".p-3d", "data-piezas"))
+        refs = int(pg.get_attribute(".p-3d", "data-refs"))
+        control(n == chapas and pg.locator(".p-3d canvas").count() == 1 and pg.locator(".p-3d .error-txt").count() == 0,
+                f"chapa 3D {fid}{' con principal' if extra else ''}: {n} piezas de {chapas} chapas, {refs} de referencia")
+        if fid == "t_cil_cil":
+            control(refs == (0 if extra else 1), f"chapa 3D T: principal {'como chapa' if extra else 'de referencia'}")
+        if cap:
+            pg.screenshot(path=f"{cap}/c_chapa3d_{fid}{'_ppal' if extra else ''}.png")
+        pg.click(".p-3d .p-c-cerrar")
+        control(pg.locator(".p-3d").count() == 0, f"chapa 3D {fid}: cerrar")
+    pg.click("#fig-actual")
+    pg.wait_for_selector("#hoja-figuras[open]")
+    pg.click(".grilla-figs .fig[data-id=tronco_cono]")
+    pg.wait_for_timeout(400)
     pg.click("#fig-actual")
     pg.wait_for_selector("#hoja-figuras[open]")
     pg.click(".grilla-figs .fig[data-id=helicoide]")
@@ -574,6 +603,7 @@ def pro(b, base, cap):
         n = pg.locator("#chapas li").count()
         trazos = pg.evaluate("document.querySelector('#vista .corte')?.getAttribute('d').length || 0")
         control(n >= 1 and trazos > 50 and pg.is_hidden("#error"), f"PRO: {fid} se calcula y se dibuja")
+        control(pg.is_hidden("#z-3d"), f"PRO: {fid} sin 3D todavía (sin botón)")
         if cap:
             pg.locator(".plancha").screenshot(path=f"{cap}/pro_{fid}.png")
     # imprimir a escala (la última figura: helicoide): hojas A4 y una sola hoja

@@ -9,6 +9,7 @@ import { esPro, cargarPro } from "../licencia.js";
 import { ponerContexto, abrirPro } from "../hoja-pro.js";
 import { abrirSalida, cerrarSalida } from "../salida.js";
 import { armarTrabajos } from "../trabajos.js";
+import { abrir3DChapa, cerrar3DChapa } from "./chapa3d.js";
 
 const CLAVE_MEMORIA = "optimax-pwa";
 const ESPESOR_DEF = "2";
@@ -66,6 +67,7 @@ export async function montar(cont) {
 }
 
 export function desmontar() {
+  cerrar3DChapa();
   cerrarCompleta(true);
   clearTimeout(reloj);
   limpiar.forEach((f) => f());
@@ -102,6 +104,7 @@ const PLANTILLA = `
         <button type="button" id="z-mas" class="z-fino" aria-label="Acercar">+</button>
         <button type="button" id="z-menos" class="z-fino" aria-label="Alejar">−</button>
         <button type="button" id="z-ajustar" class="z-fino" aria-label="Ver todo">⤢</button>
+        <button type="button" id="z-3d" class="z-ampliar" hidden>3D</button>
         <button type="button" id="z-ampliar" class="z-ampliar">Ampliar</button>
       </div>
       <button type="button" id="z-cerrar" class="z-cerrar">Cerrar</button>
@@ -238,10 +241,12 @@ function calcular({ ajustar = false } = {}) {
     piezas = fig.generar(v, t);
   } catch (e) {
     ultimas = null;
+    $("#z-3d").hidden = true;
     mostrarError(e.message);
     return;
   }
   ultimas = { piezas, t, v };
+  $("#z-3d").hidden = typeof fig.armado3D !== "function";      // las figuras que todavía no tienen su 3D, sin botón
   memoria.figura = fig.id;
   memoria.valores[fig.id] = { ...crudo };
   memoria.espesor = espesor;
@@ -356,6 +361,7 @@ function armarPlancha() {
   $("#z-ajustar").addEventListener("click", () => vista.ajustar());
   vista.alTocar = abrirCompleta;
   $("#z-ampliar").addEventListener("click", abrirCompleta);
+  $("#z-3d").addEventListener("click", () => { if (ultimas && fig.armado3D) abrir3DChapa(fig, ultimas.v, ultimas.t); });
   $("#z-cerrar").addEventListener("click", () => cerrarCompleta());
   const pop = () => cerrarCompleta(true);
   const esc = (e) => { if (e.key === "Escape") cerrarCompleta(); };

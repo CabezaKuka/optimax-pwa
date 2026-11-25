@@ -4,8 +4,8 @@ const VERSION = "optimax-pwa-24";
 const ARCHIVOS = [
   "./", "index.html", "app.css", "app.js", "vista.js", "manifest.webmanifest",
   "modulos.js", "inicio.js", "iconos.js", "licencia.js", "licencia-config.js", "vendor/ed25519.js", "hoja-pro.js", "salida.js", "trabajos.js", "modulos/chapa.js", "modulos/barras.js", "barras/motor.js",
-  "modulos/guillotina.js", "guillotina/motor.js", "modulos/portones.js", "modulos/portones3d.js", "portones/motor.js", "barras/trabajador.js",
-  "geo/base.js", "geo/index.js", "geo/medidas.js",
+  "modulos/guillotina.js", "guillotina/motor.js", "modulos/portones.js", "modulos/portones3d.js", "modulos/visor3d.js", "modulos/chapa3d.js", "portones/motor.js", "barras/trabajador.js",
+  "geo/base.js", "geo/index.js", "geo/medidas.js", "geo/arma3d.js",
   "geo/t_cil_cil.js", "geo/codo_sectores.js", "geo/tronco_cono.js", "geo/tronco_piramide.js",
   "fuentes/barlow-latin-400-normal.woff2", "fuentes/barlow-latin-600-normal.woff2",
   "fuentes/barlow-latin-700-normal.woff2", "fuentes/barlow-semi-condensed-latin-500-normal.woff2",
