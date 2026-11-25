@@ -152,6 +152,16 @@ const PLANTILLA = `
         <label><input type="radio" name="p-armado" value="a_tope"><span>A tope</span></label>
         <label><input type="radio" name="p-armado" value="pasantes"><span>Pasantes</span></label>
       </div></div>
+    <div class="campo campo-opcion" data-k="chapa_trav"><span class="rotulo" id="p-chapa_trav-rot">Travesaños</span>
+      <div class="segmentos" role="radiogroup" aria-labelledby="p-chapa_trav-rot">
+        <label><input type="radio" name="p-chapa_trav" value="atras"><span>Atrás de la chapa</span></label>
+        <label><input type="radio" name="p-chapa_trav" value="a_tope"><span>A tope</span></label>
+      </div></div>
+    <div class="campo campo-opcion" data-k="cruce"><span class="rotulo" id="p-cruce-rot">Cruce</span>
+      <div class="segmentos" role="radiogroup" aria-labelledby="p-cruce-rot">
+        <label><input type="radio" name="p-cruce" value="cruzadas"><span>Cruzadas</span></label>
+        <label><input type="radio" name="p-cruce" value="plano"><span>Mismo plano</span></label>
+      </div></div>
     <div class="campo campo-opcion" data-k="trav_lado"><span class="rotulo" id="p-trav_lado-rot">Travesaños</span>
       <div class="segmentos" role="radiogroup" aria-labelledby="p-trav_lado-rot">
         <label><input type="radio" name="p-trav_lado" value="adelante"><span>Adelante</span></label>
@@ -386,7 +396,9 @@ function ponerValores() {
   $("#p-cantidad").textContent = it.cantidad;
   $("#p-n_trav").textContent = it.n_trav;
   for (const r of raiz.querySelectorAll('input[name="p-armado"]')) r.checked = r.value === it.armado;
-  for (const r of raiz.querySelectorAll('input[name="p-trav_lado"]')) r.checked = r.value === it.trav_lado;
+  for (const k of ["trav_lado", "chapa_trav", "cruce"]) {
+    for (const r of raiz.querySelectorAll(`input[name="p-${k}"]`)) r.checked = r.value === it[k];
+  }
   $("#p-corte").value = est.corte;
   $("#p-sold").value = est.sold;
   $("#p-pint").value = est.pint;
@@ -416,6 +428,7 @@ function habilitar() {
   const on = {
     luz_max: P.usaLuz(r), angulo: P.usaAngulo(r), armado: P.usaArmado(r) && it.n_trav > 0, esp_chapa: r === "chapa",
     trav_lado: P.usaArmado(r) && it.n_trav > 0 && it.armado === "pasantes",
+    chapa_trav: r === "chapa" && it.n_trav > 0, cruce: P.usaCruce(r),
     perfil_relleno: r !== "chapa", perfil_trav: it.n_trav > 0,
     holg_lat: t === "batiente_1" || t === "batiente_2", holg_centro: t === "batiente_2", luz_piso: P.PORTONES.includes(t),
     solape: t === "corredizo",
@@ -469,6 +482,11 @@ function armarEventos() {
   for (const r of raiz.querySelectorAll('input[name="p-trav_lado"]')) {
     r.addEventListener("change", () => { if (r.checked) { est.item.trav_lado = r.value; guardar(); dibujar(); dibujarCompleta(); } });
   }
+  for (const k of ["chapa_trav", "cruce"]) {                 // cambian la lista de corte: se recalcula
+    for (const r of raiz.querySelectorAll(`input[name="p-${k}"]`)) {
+      r.addEventListener("change", () => { if (r.checked) { est.item[k] = r.value; programar(0); } });
+    }
+  }
   for (const [id, k] of [["p-corte", "corte"], ["p-sold", "sold"], ["p-pint", "pint"], ["p-margen", "margen"]]) {
     const inp = $(`#${id}`);
     inp.addEventListener("focus", () => inp.select());
@@ -479,7 +497,8 @@ function armarEventos() {
   $("#p-3d").addEventListener("click", () => {
     if (!calc?.resultados[0]) return;
     abrir3D(calc.resultados[0], perfiles(), { espChapa: est.item.esp_chapa, piso: P.PORTONES.includes(est.item.tipo),
-      pasantes: pasantes(), travAtras: travAtras() });
+      pasantes: pasantes(), travAtras: travAtras(), relleno: est.item.relleno, cruce: est.item.cruce,
+      chapaTrav: est.item.n_trav > 0 ? est.item.chapa_trav : "atras" });
   });
   $("#p-admin").addEventListener("click", abrirPerfiles);
   $("#hoja-perfiles").addEventListener("close", cerrarPerfiles);
@@ -821,6 +840,14 @@ function datos() {
   ln.push(`Peso de las piezas: <b>${n1(c.kg_neto)} kg</b> · acero a comprar (barras enteras): <b>${n1(c.kg_compra)} kg</b>` +
     (c.kg_chapa ? ` · chapa ${n1(c.kg_chapa)} kg` : ""));
   ln.push(`Soldadura estimada: <b>${n1(c.sold_m)} m</b> · superficie a pintar: <b>${miles(c.pint_m2, 2)} m²</b>`);
+  if (c.chapas.length) {                                      // chapas a cortar (iguales juntas)
+    const g = new Map();
+    for (const [w, h, e, q] of c.chapas) {
+      const k = `${corto(w, 1)} × ${corto(h, 1)} mm · ${corto(e, 2)} mm`;
+      g.set(k, (g.get(k) || 0) + q);
+    }
+    ln.push(`Chapas a cortar: <b>${[...g].map(([k, q]) => `${q} de ${k}`).join("; ")}</b>`);
+  }
   if (c.herrajes.length) ln.push(`Herrajes (no van en el precio): ${c.herrajes.map(([n, v]) => `${n}: ${corto(v, 4)}`).join(", ")}`);
   ln.push(c.problemas.length ? `⚠ Control: ${esc(c.problemas.slice(0, 3).join("; "))}`
     : "✓ Control: piezas dibujadas = lista de corte y barras = piezas pedidas.");

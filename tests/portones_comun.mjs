@@ -70,7 +70,7 @@ export function volcarCalc(c, conBarras = true) {
     }),
     errores: c.errores, avisos: c.avisos, herrajes: c.herrajes, piezas: c.piezas, kg_chapa: c.kg_chapa,
     m2_chapa: c.m2_chapa, kg_neto: c.kg_neto, sold_m: c.sold_m, pint_m2: c.pint_m2,
-    items: c.items.map(({ trav_lado: _, ...x }) => x),       // trav_lado: solo PWA (adelante / atrás en pasantes)
+    items: c.items.map((x) => Object.fromEntries(Object.entries(x).filter(([k]) => !P.SOLO_PWA.includes(k)))),   // la PC no las tiene
     resultados: c.resultados.map(volcarR), verificar: P.verificar(c),
   };
   if (conBarras) Object.assign(out, { kg_compra: c.kg_compra, n_barras: c.n_barras, costos: c.costos });

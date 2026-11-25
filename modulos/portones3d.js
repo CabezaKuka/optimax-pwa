@@ -6,9 +6,10 @@
 //     más largo (en el marco, el de afuera): la parte hueca queda atrás.
 //   - Tubo y macizo redondo: cilindro de diámetro a sobre el eje de la pieza.
 //   - Chapa ciega: placa del espesor de la chapa.
-// Profundidad (z, hacia el que mira): el marco centrado en z = 0. A tope: todo centrado. Pasantes (travesaños
-// superpuestos, 25-nov, Max): el de adelante (travesaño o barrotes, a elegir) al ras de la cara del frente del marco y
-// el otro apoyado detrás. Marco de ángulo (25-nov, Max): travesaños, relleno y chapa adentro de la L, apoyados detrás de
+// Profundidad (z, hacia el que mira): el marco centrado en z = 0; el resto en capas desde la cara de adelante del marco
+// hacia atrás (25-nov, Max): a tope, el relleno y los travesaños en una capa; pasantes, el de adelante (travesaño o
+// barrotes, a elegir) y el otro detrás; cuadrícula / rombos cruzados, una familia (verticales / diagonal «/») adelante y
+// la otra detrás; chapa con los travesaños atrás, la chapa adelante; chapa a tope, paños y travesaños en una capa. Marco de ángulo (25-nov, Max): travesaños, relleno y chapa adentro de la L, apoyados detrás de
 // la cara (el cálculo ya los alarga hasta las alas). Unidades en mm, y hacia arriba (como la elevación).
 // three.js (vendor/three.min.js) se carga recién al abrir la vista.
 
@@ -25,29 +26,47 @@ const profundidad = (p) => (p.forma === "tubo" || p.forma === "angulo" || p.form
  * Piezas 3D (sin three.js). {piezas: [{capa, tipo: "extruir", pts, z0, z1} | {capa, tipo: "cilindro", centro, dir,
  * largo, d, z}], n: piezas del plano, aviso}.
  */
-export function piezas3D(R, perfiles, { espChapa = 1.5, pasantes = false, travAtras = false } = {}) {
+export function piezas3D(R, perfiles, { espChapa = 1.5, pasantes = false, travAtras = false, relleno = "",
+  cruce = "cruzadas", chapaTrav = "atras" } = {}) {
   const perfil = (k) => (k ? perfiles[k.split("\u0001")[0]] || null : null);
   const formas = R.formas.map(([capa, pts, k]) => ({ capa, pts, p: capa === "CHAPA" ? null : perfil(k) }));
   const prof = (f) => (f.p ? profundidad(f.p) : Math.max(0.5, Number(espChapa) || 1.5));
   const maxCapa = (c) => Math.max(0, ...formas.filter((f) => f.capa === c).map(prof));
   const Dm = maxCapa("MARCO") || maxCapa("BARRA") || 20;
   const pmAng = formas.find((f) => f.capa === "MARCO" && f.p && f.p.forma === "angulo" && f.p.t > 0)?.p || null;
-  const frente = pmAng ? Dm / 2 - pmAng.t : Dm / 2;      // donde apoya el relleno: detrás de la cara del ángulo
+  const frente = pmAng ? Dm / 2 - pmAng.t : Dm / 2;      // donde apoya el relleno: la cara de adelante del marco
   const hondo = pmAng ? Dm - pmAng.t : Dm;                // lugar para el relleno dentro del marco
-  const adelante = travAtras ? "BARRA" : "TRAVESANO", atras = travAtras ? "TRAVESANO" : "BARRA";
-  const dAdel = maxCapa(adelante), dAtras = maxCapa(atras);
+  // capa de profundidad de cada pieza (de adelante hacia atrás): travesaño, familias del relleno, chapa
+  const cruzadas = (relleno === "cuadricula" || relleno === "rombos") && cruce !== "plano";
+  const familia = (f) => {
+    if (f.capa === "CHAPA") return "chapa";
+    if (f.capa === "TRAVESANO") return "trav";
+    if (!cruzadas) return "barra";
+    const { dir } = eje(f.pts);
+    return relleno === "cuadricula" ? (Math.abs(dir[1]) > Math.abs(dir[0]) ? "famA" : "famB")
+      : (dir[0] * dir[1] > 0 ? "famA" : "famB");
+  };
+  let capas;
+  if (relleno === "chapa") capas = chapaTrav === "a_tope" ? [["chapa", "trav"]] : [["chapa"], ["trav"]];
+  else {
+    const rel = cruzadas ? [["famA"], ["famB"]] : [["barra"]];
+    if (pasantes) capas = travAtras ? [...rel, ["trav"]] : [["trav"], ...rel];
+    else capas = [[...rel[0], "trav"], ...rel.slice(1)];
+  }
+  const fam = formas.map((f) => (f.capa === "MARCO" ? null : familia(f)));
+  const hondoCapa = capas.map((cs) => Math.max(0, ...formas.filter((f, i) => cs.includes(fam[i])).map(prof)));
+  const z1Capa = {};
+  let acum = 0;
+  capas.forEach((cs, i) => { for (const c of cs) z1Capa[c] = frente - acum; acum += hondoCapa[i]; });
   let aviso = "";
-  if (pasantes && dAdel + dAtras > hondo + 0.05) {
-    aviso = `Los ${travAtras ? "barrotes" : "travesaños"} y los ${travAtras ? "travesaños" : "barrotes"} juntos ` +
-      `(${fmt(dAdel + dAtras)} mm) son más gruesos que ${pmAng ? "el lugar detrás de la cara del ángulo" : "el marco"} (${fmt(hondo)} mm): sobresalen atrás.`;
+  if (hondoCapa.filter((h) => h > 0).length > 1 && acum > hondo + 0.05) {
+    aviso = `El relleno y los travesaños, uno detrás del otro, suman ${fmt(acum)} mm y ` +
+      `${pmAng ? "detrás de la cara del ángulo hay" : "el marco tiene"} ${fmt(hondo)} mm: sobresalen atrás.`;
   }
   const piezas = [];
-  for (const f of formas) {
+  formas.forEach((f, i) => {
     const d = prof(f);
-    let z1 = d / 2;                                          // cara de adelante
-    if (pasantes && f.capa === adelante) z1 = frente;
-    else if (pasantes && f.capa === atras) z1 = frente - dAdel;
-    else if (pmAng && f.capa !== "MARCO") z1 = frente;     // a tope o chapa: apoyado detrás de la cara del ángulo
+    const z1 = f.capa === "MARCO" ? d / 2 : z1Capa[fam[i]];
     const z0 = z1 - d;
     if (f.p && REDONDOS.has(f.p.forma)) {
       piezas.push({ capa: f.capa, tipo: "cilindro", ...eje(f.pts), d: f.p.a, z: (z0 + z1) / 2 });
@@ -58,7 +77,7 @@ export function piezas3D(R, perfiles, { espChapa = 1.5, pasantes = false, travAt
     } else {
       piezas.push({ capa: f.capa, tipo: "extruir", pts: f.pts, z0, z1 });
     }
-  }
+  });
   return { piezas, n: R.formas.length, aviso };
 }
 
@@ -106,7 +125,8 @@ let abierta = null;
  * Abre la vista 3D a pantalla completa. R = resultado del ítem (calc.resultados[0]); perfiles = {nombre: Perfil};
  * opts.piso = true para dibujar el piso (portones; la reja de ventana va en la pared).
  */
-export async function abrir3D(R, perfiles, { espChapa = 1.5, piso = false, pasantes = false, travAtras = false } = {}) {
+export async function abrir3D(R, perfiles, { espChapa = 1.5, piso = false, pasantes = false, travAtras = false,
+  relleno = "", cruce = "cruzadas", chapaTrav = "atras" } = {}) {
   if (abierta) return;
   const capa = document.createElement("div");
   capa.className = "p-completa p-3d";
@@ -175,7 +195,7 @@ export async function abrir3D(R, perfiles, { espChapa = 1.5, piso = false, pasan
     basura.push(geo, ed);
     grupo.add(m, new T.LineSegments(ed, lineas));
   };
-  const { piezas: lista, n, aviso } = piezas3D(R, perfiles, { espChapa, pasantes, travAtras });
+  const { piezas: lista, n, aviso } = piezas3D(R, perfiles, { espChapa, pasantes, travAtras, relleno, cruce, chapaTrav });
   if (aviso) { const a = capa.querySelector(".p-3d-aviso"); a.textContent = `⚠ ${aviso}`; a.hidden = false; }
   const Y = new T.Vector3(0, 1, 0);
   for (const pz of lista) {
