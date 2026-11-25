@@ -40,9 +40,11 @@ export const ITEM_DEF = {
   trav_lado: "adelante",            // solo PWA (pasantes): el travesaño adelante o atrás de los barrotes (3D y dibujo)
   chapa_trav: "atras",              // solo PWA (chapa ciega): travesaños atrás de la chapa (una pieza) o a tope (paños)
   cruce: "cruzadas",                // solo PWA (cuadrícula, rombos): familias superpuestas o en el mismo plano (en tramos)
+  // solo PWA (25-nov, Max): cara de frente de cada perfil. «a» = la 1.ª medida (40 en 40×20×2, como la PC), «b» = la 2.ª
+  frente_marco: "a", frente_trav: "a", frente_relleno: "a",
 };
 /** Claves del ítem que la PC no tiene (las ignora al abrir el .nesting). */
-export const SOLO_PWA = ["trav_lado", "chapa_trav", "cruce"];
+export const SOLO_PWA = ["trav_lado", "chapa_trav", "cruce", "frente_marco", "frente_trav", "frente_relleno"];
 const ENTEROS = new Set(["cantidad", "n_trav"]);
 export const MAX_TRAV = 10;
 
@@ -193,6 +195,21 @@ export function deducirPerfil(nombre) {
   return m ? [forma, textoMedidas(forma, ...m)] : ["", ""];
 }
 
+/** true si el perfil tiene dos caras distintas que pueden ir de frente (tubo rectangular, ángulo de alas distintas,
+ * planchuela, macizo rectangular). */
+export const sePuedeGirar = (p) => !!p && p.forma !== "tubo_red" && p.forma !== "macizo_red" && p.b > 0 &&
+  Math.abs(p.a - p.b) > 1e-9;
+
+/** Perfil con la 2.ª medida de frente (botón «Frente», solo PWA): mismo nombre, así la compra de barras se junta con
+ * el sin girar; «girado» separa las piezas en la lista de corte (otro corte: el inglete cruza la otra cara). */
+export function girarPerfil(p) {
+  if (!sePuedeGirar(p) || p.girado) return p;
+  const g = new Perfil(p.nombre, p.forma, p.b, p.a, p.t, p.largo, p.precio, p.kgMDato);
+  g.girado = true;
+  g.rotulo = `${p.nombre} · ${corto(g.a, 2)} de frente`;
+  return g;
+}
+
 /** Perfil de un material {nombre, forma, medidas, largo, precio, kg_m} o null si le faltan forma o medidas. */
 export function perfilDe(m) {
   const forma = String(m.forma || "");
@@ -242,6 +259,7 @@ export function normalizarItem(d) {
   out.cantidad = Math.max(1, out.cantidad);
   out.n_trav = Math.max(0, Math.min(MAX_TRAV, out.n_trav));
   out.nombre = out.nombre.trim() || TEXTO[out.tipo];
+  for (const k of ["frente_marco", "frente_trav", "frente_relleno"]) if (out[k] !== "b") out[k] = "a";
   return out;
 }
 
@@ -286,7 +304,10 @@ export function distribuir(libre, anchoBarra, luzMax) {
 }
 
 /** Identifica una pieza de la lista de corte (mismo perfil, largo y corte = misma marca). */
-export const clave = (perfil, largo, corte) => `${perfil.nombre}\u0001${red(largo, 1)}\u0001${JSON.stringify(corte)}`;
+export const clave = (perfil, largo, corte) =>
+  `${perfil.nombre}${perfil.girado ? GIRADO : ""}\u0001${red(largo, 1)}\u0001${JSON.stringify(corte)}`;
+/** Marca del perfil girado en la clave, pegada al nombre (la vista 3D la lee). */
+export const GIRADO = "\u0002g";
 
 const rectPts = (x, y, w, h) => [[x, y], [x + w, y], [x + w, y + h], [x, y + h]];
 
@@ -685,20 +706,26 @@ export function generar(it, perfiles) {
   it = normalizarItem(it);
   const def = TIPOS_DEF[it.tipo];
   if (!def) throw new Error("ese tipo es de la versión PRO");
-  const pm = perfiles[it.perfil_marco];
+  let pm = perfiles[it.perfil_marco];
   if (!pm) throw new Error(it.perfil_marco ? `el perfil «${it.perfil_marco}» no tiene medidas` : "elegí el perfil del marco");
   let pr = perfiles[it.perfil_relleno];
   if (!pr) {
     if (it.relleno !== "chapa") {
       throw new Error(it.perfil_relleno ? `el perfil «${it.perfil_relleno}» no tiene medidas` : "elegí el perfil del relleno");
     }
-    pr = pm;
+    pr = null;                                          // chapa: más abajo, el del marco
   }
   let pt = pm;
   if (it.perfil_trav && it.n_trav > 0) {
     pt = perfiles[it.perfil_trav];
     if (!pt) throw new Error(`el perfil «${it.perfil_trav}» de los travesaños no tiene medidas`);
   }
+  // botón «Frente» (solo PWA): con «Igual que el marco» los travesaños siguen al marco
+  const marcoGirado = it.frente_marco === "b";
+  if (it.perfil_trav && it.n_trav > 0 ? it.frente_trav === "b" : marcoGirado) pt = girarPerfil(pt);
+  if (it.relleno !== "chapa" && it.frente_relleno === "b") pr = girarPerfil(pr);
+  if (marcoGirado) pm = girarPerfil(pm);
+  if (pr === null) pr = pm;
   if (it.ancho <= 0 || it.alto <= 0) throw new Error("el ancho y el alto tienen que ser mayores que cero");
   if (usaLuz(it.relleno) && it.luz_max <= 0) throw new Error("la luz máxima tiene que ser mayor que cero");
   if (usaAngulo(it.relleno) && !(it.angulo >= 10 && it.angulo <= 80)) throw new Error("el ángulo tiene que estar entre 10° y 80°");
@@ -849,7 +876,8 @@ export function calcular(items, perfiles, corte = 3.0, optimizar = optimizarRapi
     for (const [w, h, e] of R.chapas) chapas.push([w, h, e, q]);
     for (const [nombre, c] of R.herrajes) herrajes.set(nombre, (herrajes.get(nombre) || 0) + c * q);
   });
-  const filas = [...acc.values()].sort((a, b) => cmp([rango(a), a.perfil.nombre, -a.largo, a.corte], [rango(b), b.perfil.nombre, -b.largo, b.corte]));
+  const filas = [...acc.values()].sort((a, b) => cmp([rango(a), a.perfil.nombre, -a.largo, a.corte, a.perfil.girado ? 1 : 0],
+    [rango(b), b.perfil.nombre, -b.largo, b.corte, b.perfil.girado ? 1 : 0]));
   const marcas = {};
   filas.forEach((f, i) => {
     f.marca = letraMarca(i);

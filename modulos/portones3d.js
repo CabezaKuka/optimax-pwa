@@ -28,7 +28,13 @@ const profundidad = (p) => (p.forma === "tubo" || p.forma === "angulo" || p.form
  */
 export function piezas3D(R, perfiles, { espChapa = 1.5, pasantes = false, travAtras = false, relleno = "",
   cruce = "cruzadas", chapaTrav = "atras" } = {}) {
-  const perfil = (k) => (k ? perfiles[k.split("\u0001")[0]] || null : null);
+  // la clave lleva «\u0002g» pegada al nombre si el perfil va con la 2.ª medida de frente (botón «Frente», solo PWA)
+  const perfil = (k) => {
+    if (!k) return null;
+    const [nom, g] = k.split("\u0001")[0].split("\u0002");
+    const p = perfiles[nom] || null;
+    return p && g !== undefined ? { ...p, a: p.b || p.a, b: p.a } : p;
+  };
   const formas = R.formas.map(([capa, pts, k]) => ({ capa, pts, p: capa === "CHAPA" ? null : perfil(k) }));
   const prof = (f) => (f.p ? profundidad(f.p) : Math.max(0.5, Number(espChapa) || 1.5));
   const maxCapa = (c) => Math.max(0, ...formas.filter((f) => f.capa === c).map(prof));
