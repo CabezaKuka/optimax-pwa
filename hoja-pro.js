@@ -7,6 +7,8 @@ import { pedirIngreso, consultarIngreso } from "./licencia.js";
 const WHATSAPP = "59177626675";
 const PRECIO = "25 USD";
 const CADA_MS = 2000;                    // consulta al bot mientras espera el mensaje
+const ANDROID = /android/i.test(navigator.userAgent);
+const MSJ_ESPERA = "Mandá el mensaje que se abrió en WhatsApp y volvé acá. Esperando tu mensaje…";
 
 const MOTIVOS = {
   imprimir: "El PDF de la pieza (plano con medidas y plantilla a escala para trazar) es de la versión PRO.",
@@ -50,10 +52,23 @@ export function armarHojaPro() {
   d.addEventListener("click", (e) => { if (e.target === d) d.close(); });   // tocar afuera cierra
   d.addEventListener("close", parar);
   $h("#pro-activar").addEventListener("toggle", (e) => { if (e.target.open) prepararIngreso(); else parar(); });
-  $h("#pro-entrar").addEventListener("click", (e) => {
-    if (!ingreso) { e.preventDefault(); return; }
-    mostrar("espera", "Mandá el mensaje que se abrió en WhatsApp y volvé acá. Esperando tu mensaje…");
+  for (const id of ["#pro-entrar", "#pro-business"]) {
+    $h(id).addEventListener("click", (e) => {
+      if (!ingreso) { e.preventDefault(); return; }
+      mostrar("espera", MSJ_ESPERA);
+      esperar();
+    });
+  }
+  // copiar el mensaje para mandarlo desde otra app (Business en iPhone, PC sin WhatsApp Web…)
+  $h("#pro-copiar-btn").addEventListener("click", async (e) => {
+    if (!ingreso) return;
+    mostrar("espera", "Pegalo en WhatsApp, mandalo y volvé acá. Esperando tu mensaje…");
     esperar();
+    try {
+      await navigator.clipboard.writeText(ingreso.texto);
+      e.target.textContent = "Copiado";
+      setTimeout(() => { e.target.textContent = "Copiar mensaje"; }, 1500);
+    } catch { /* sin portapapeles: el mensaje está a la vista */ }
   });
   $h("#pro-listo").addEventListener("click", () => location.reload());     // los módulos se vuelven a armar con la PRO
   // al volver de WhatsApp, consultar enseguida (en segundo plano el navegador frena los relojes)
@@ -73,7 +88,11 @@ function habilitar(si) {
   const a = $h("#pro-entrar");
   a.setAttribute("aria-disabled", si ? "false" : "true");
   if (!si) a.href = "#";
+  $h("#pro-business").hidden = !si || !ANDROID;
+  $h("#pro-copiar").hidden = !si;
 }
+
+const numeroVisible = (n) => (n.startsWith("591") && n.length === 11 ? `+591 ${n.slice(3)}` : `+${n}`);
 
 /** Pide un código de un solo uso al bot y deja el botón apuntando a WhatsApp con el mensaje listo. */
 async function prepararIngreso() {
@@ -82,7 +101,13 @@ async function prepararIngreso() {
   habilitar(false);
   try {
     ingreso = await pedirIngreso();
-    $h("#pro-entrar").href = `https://wa.me/${ingreso.whatsapp}?text=${encodeURIComponent(ingreso.texto)}`;
+    const waMe = `https://wa.me/${ingreso.whatsapp}?text=${encodeURIComponent(ingreso.texto)}`;
+    $h("#pro-entrar").href = waMe;
+    // Android: abre directo WhatsApp Business (si no está instalado, el enlace de siempre)
+    $h("#pro-business").href = `intent://send/?phone=${ingreso.whatsapp}&text=${encodeURIComponent(ingreso.texto)}` +
+      `#Intent;scheme=whatsapp;package=com.whatsapp.w4b;S.browser_fallback_url=${encodeURIComponent(waMe)};end`;
+    $h("#pro-bot").textContent = numeroVisible(ingreso.whatsapp);
+    $h("#pro-msj").textContent = ingreso.texto;
     habilitar(true);
   } catch (e) {
     mostrar("error", e.message);
@@ -113,12 +138,15 @@ async function consultar() {
       ingreso = null;                                  // otro código para volver a intentar
       mostrar("error", r === "vencido"
         ? "El pedido venció. Tocá «Entrar con WhatsApp» de nuevo."
-        : "Ese número de WhatsApp no tiene optiMAX PRO. Si ya pagaste, avisanos y la habilitamos; si no, tocá «Consultar por WhatsApp».");
+        : "Ese número de WhatsApp no tiene optiMAX PRO. Si tenés WhatsApp y WhatsApp Business, mandalo desde el número " +
+          "con el que compraste. Si ya pagaste, avisanos y la habilitamos; si no, tocá «Consultar por WhatsApp».");
       prepararIngreso();
       return;
     }
     mostrar("ok", `✓ optiMAX PRO activada a nombre de ${r.nombre}. Desde ahora anda también sin internet.`);
     $h("#pro-entrar").hidden = true;
+    $h("#pro-business").hidden = true;
+    $h("#pro-copiar").hidden = true;
     $h("#pro-listo").hidden = false;
     ingreso = null;
   } catch (e) {
