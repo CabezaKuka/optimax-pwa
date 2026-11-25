@@ -204,6 +204,28 @@ def barras_demo(pg, base, cap):
     pg.wait_for_selector(".inicio")
 
 
+def ver_3d(pg, que, cap=None, nombre=None):
+    """Abre la vista 3D del portón, controla que dibuje todas las piezas y la cierra."""
+    n2d = pg.evaluate("document.querySelectorAll('#p-dibujo svg polygon, #p-dibujo svg path.p-forma').length")
+    pg.click("#p-3d")
+    pg.wait_for_selector(".p-3d[data-piezas]", timeout=15000)
+    pg.wait_for_timeout(700)
+    n3d = int(pg.get_attribute(".p-3d", "data-piezas"))
+    control(n3d > 0 and pg.locator(".p-3d canvas").count() == 1 and pg.locator(".p-3d .error-txt").count() == 0,
+            f"{que}: vista 3D con {n3d} piezas")
+    pg.click(".p-3d-frente")
+    pg.mouse.move(195, 420)
+    pg.mouse.down()
+    pg.mouse.move(250, 470, steps=6)
+    pg.mouse.up()
+    pg.wait_for_timeout(400)
+    if cap and nombre:
+        pg.screenshot(path=f"{cap}/{nombre}.png")
+    pg.click(".p-3d .p-c-cerrar")
+    control(pg.locator(".p-3d").count() == 0, f"{que}: cerrar la vista 3D")
+    return n3d, n2d
+
+
 def guillotina_demo(pg, base, cap):
     pg.evaluate("localStorage.removeItem('optimax-guillotina')")
     pg.goto(base + "#guillotina")
@@ -322,6 +344,7 @@ def portones_demo(pg, base, cap):
     control(pg.locator(".p-completa svg").count() == 1, "portones: pantalla completa")
     pg.click(".p-c-cerrar")
     control(pg.locator(".p-completa").count() == 0, "portones: cerrar la pantalla completa")
+    ver_3d(pg, "portones DEMO", cap, "c_portones_3d")
     # perfiles: tarjetas plegables, nombre automático, medidas que no se entienden → el marco queda sin perfil válido
     pg.click("#p-admin")
     pg.wait_for_selector("#hoja-perfiles[open]")
@@ -496,6 +519,7 @@ def pro(b, base, cap):
     control(any(u.endswith("/pro/portones/tipos.js") for u in pedidos), "portones PRO: carga los tipos de portón")
     control(pg.inner_text("#p-resumen .dato-v >> nth=1") == "15", "portones PRO: 15 barras con el optimizador completo (el rápido da 16)")
     control("Pasador de piso" in pg.inner_text("#p-datos"), "portones PRO: herrajes del portón")
+    ver_3d(pg, "portones PRO (batiente 2 hojas)", cap, "pro_portones_3d")
     pg.click("summary:has-text('Corte y costos')")
     pg.fill("#p-sold", "15")
     pg.fill("#p-pint", "40")
@@ -508,6 +532,14 @@ def pro(b, base, cap):
     if cap:
         pg.screenshot(path=f"{cap}/pro_portones.png", full_page=True)
     bajar_pdf(pg, "#p-pdf", "PRO portones: lista de corte", None, cap)
+    # 3D: corredizo con barrotes de macizo redondo (cilindros) y batiente con chapa ciega
+    pg.click(".p-tarjeta[data-v=corredizo]")
+    pg.select_option("#p-perfil_relleno", "Macizo redondo Ø12")
+    pg.wait_for_timeout(1500)
+    ver_3d(pg, "portones PRO (corredizo, macizo redondo)", cap, "pro_corredizo_3d")
+    pg.click(".p-tarjeta[data-v=chapa]")
+    pg.wait_for_timeout(1500)
+    ver_3d(pg, "portones PRO (chapa ciega)", cap, "pro_chapa_3d")
     pg.goto(base + "?pro=0")
     pg.wait_for_selector(".inicio")
     control(pg.is_visible(".btn-pro"), "?pro=0: vuelve la DEMO")

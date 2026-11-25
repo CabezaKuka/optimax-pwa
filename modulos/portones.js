@@ -10,6 +10,7 @@ import { cargarPro, urlPro } from "../licencia.js";
 import { ponerContexto, abrirPro } from "../hoja-pro.js";
 import { abrirSalida, activarBoton, cerrarSalida } from "../salida.js";
 import { armarTrabajos } from "../trabajos.js";
+import { abrir3D, cerrar3D } from "./portones3d.js";
 
 const CLAVE = "optimax-portones";
 // perfiles de ejemplo, sin precio (cada uno carga los suyos en «Perfiles»)
@@ -110,6 +111,7 @@ export function desmontar() {
   pedido++;
   if (trabajador) { trabajador.terminate(); trabajador = null; ocupado = false; }
   cerrarCompleta();
+  cerrar3D();
   raiz?.querySelector("#hoja-perfiles")?.close?.();
 }
 
@@ -179,6 +181,7 @@ const PLANTILLA = `
         <div class="p-elev-cab">
           <span class="p-luz" id="p-luz"></span>
           <label class="tilde tilde-chica"><input type="checkbox" id="p-cotas"> Cotas</label>
+          <button type="button" class="btn-sec btn-chico" id="p-3d">3D</button>
           <button type="button" class="btn-sec btn-chico" id="p-ampliar">Ampliar</button>
         </div>
         <div class="p-dibujo" id="p-dibujo"></div>
@@ -461,6 +464,10 @@ function armarEventos() {
   }
   $("#p-cotas").addEventListener("change", (e) => { est.cotas = e.target.checked; guardar(); dibujar(); });
   $("#p-ampliar").addEventListener("click", abrirCompleta);
+  $("#p-3d").addEventListener("click", () => {
+    if (!calc?.resultados[0]) return;
+    abrir3D(calc.resultados[0], perfiles(), { espChapa: est.item.esp_chapa, piso: P.PORTONES.includes(est.item.tipo) });
+  });
   $("#p-admin").addEventListener("click", abrirPerfiles);
   $("#hoja-perfiles").addEventListener("close", cerrarPerfiles);
   let ancho = 0;
