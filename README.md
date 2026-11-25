@@ -26,8 +26,7 @@ licencia-config.js            llave pública y dirección del bot (las escribe e
 vendor/ed25519.js             noble-ed25519 (MIT): verifica la firma de las claves en el navegador
 pro.bin                       código PRO cifrado (AES-GCM); lo genera el repo privado (herramientas/), sin la llave no sirve
 salida.js                     hoja «Imprimir / guardar en PDF» (opciones, páginas, Descargar / Compartir); el PDF lo arma el código PRO
-licencia.js                   esPro() y cargarPro(): la licencia se conecta al final (Railway)
-hoja-pro.js, iconos.js        hoja de compra; íconos de los módulos
+hoja-pro.js, iconos.js        hoja de compra («Ya compré: activar» con el código del dispositivo); íconos de los módulos
 vista.js                      dibujo de la plancha (SVG), cotas, zoom y desplazamiento
 geo/                          geometría (port del escritorio: desarrollos/*.py es la fuente de verdad)
   base.js                     Param, PiezaGen, números como Python (redondeo, coma decimal), triangulación
@@ -54,7 +53,9 @@ python -m http.server 8000                               # y abrir http://localh
 ## Código PRO
 Vive en el repo privado **CabezaKuka/optimax-pwa-pro** (este repo es público). En desarrollo se clona o enlaza en
 `pro/` (ignorado por git) y se prende con `http://localhost:8000/?pro=1` (`?pro=0` la apaga; solo en localhost).
-Publicada, `esPro()` da false hasta que se conecte el servidor de licencias.
+Publicada, la PRO se activa con una clave `OPWA1-` para el código del dispositivo: la PWA verifica la firma sin
+internet y le pide al bot (Railway, `POST /pwa/llave`) la llave de `pro.bin` una sola vez. Claves, llaves y `pro.bin`
+salen del repo privado (`herramientas/`, ver su LEEME.md).
 Si cambia una figura en el escritorio: `python tools/volcar_casos.py RUTA/nesting-cnc` y volver a comparar.
 
 ## Diferencias conocidas con el escritorio
