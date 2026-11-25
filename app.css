@@ -453,6 +453,11 @@ body.sin-scroll { overflow: hidden; }
 .p-mini svg { max-width: 100%; max-height: 60px; width: auto; height: auto; }
 .p-tnom .tag { font-size: 10px; padding: 0 3px; vertical-align: 1px; }
 .campo-perfil { grid-template-columns: 96px minmax(0, 1fr); }
+.p-frente { grid-column: 2; display: flex; align-items: center; gap: 10px; margin-top: 6px; }
+.p-frente[hidden] { display: none; }
+.p-frente-rot { font-size: 14px; color: var(--gris); }
+.p-frente .segmentos { flex: 1; }
+.p-frente .segmentos span { min-height: 32px; font: 600 15px var(--num); }
 .p-select {
   width: 100%; min-width: 0; height: 44px; padding: 0 8px; border: 1px solid var(--borde-ent); border-radius: var(--radio);
   background: var(--hoja); font: 500 16px "Barlow", sans-serif;

@@ -123,8 +123,15 @@ const campo = (k) => {
 };
 const paso = (k, rot) => `<div class="campo" data-k="${k}"><span class="rotulo" id="p-${k}-rot">${rot}</span>
   <span class="paso" role="group" aria-labelledby="p-${k}-rot"><button type="button" class="menos" data-paso="${k}" data-d="-1" aria-label="Uno menos">−</button><span class="cant" id="p-${k}">1</span><button type="button" class="mas" data-paso="${k}" data-d="1" aria-label="Uno más">+</button></span></div>`;
+// cada lista lleva abajo el botón «Frente» (25-nov, Max): qué medida va de frente en los perfiles de dos caras distintas
+const FRENTE = { perfil_marco: "frente_marco", perfil_trav: "frente_trav", perfil_relleno: "frente_relleno" };
 const perfilSel = (k, rot) => `<div class="campo campo-perfil" data-k="${k}"><label class="rotulo" for="p-${k}">${rot}</label>
-  <select id="p-${k}" class="p-select"></select></div>`;
+  <select id="p-${k}" class="p-select"></select>
+  <div class="p-frente" data-f="${FRENTE[k]}" hidden><span class="p-frente-rot" id="p-${FRENTE[k]}-rot">Frente</span>
+    <div class="segmentos" role="radiogroup" aria-labelledby="p-${FRENTE[k]}-rot">
+      <label><input type="radio" name="p-${FRENTE[k]}" value="a"><span></span></label>
+      <label><input type="radio" name="p-${FRENTE[k]}" value="b"><span></span></label>
+    </div></div></div>`;
 
 const PLANTILLA = `
 <div class="app app-barras app-portones">
@@ -409,16 +416,56 @@ function ponerValores() {
   habilitar();
 }
 
+// orden de los perfiles por tipo (25-nov, Max): todos los cuadrados juntos, todos los rectangulares juntos…
+const GRUPOS_PERFIL = ["Tubo cuadrado", "Tubo rectangular", "Tubo redondo", "Ángulo", "Planchuela", "Macizo cuadrado", "Macizo redondo"];
+function grupoPerfil(forma, a, b) {
+  if (forma === "tubo") return a === b ? 0 : 1;
+  const i = GRUPOS_PERFIL.indexOf(FORMA_CORTA[forma]);
+  return i < 0 ? GRUPOS_PERFIL.length : i;
+}
+/** Clave de orden: grupo, medidas de menor a mayor, espesor, largo de barra. */
+const ordenPerfil = (p) => [grupoPerfil(p.forma, p.a, p.b), p.a, p.b, p.t, p.largo, p.nombre];
+/** Clave de orden de un material del editor (sin medidas que se entiendan, al final). */
+function ordenMaterial(m) {
+  const md = P.leerMedidas(m.forma, m.medidas || "");
+  return md ? [grupoPerfil(m.forma, md[0], md[1]), ...md, Number(m.largo) || 0] : [GRUPOS_PERFIL.length + 1, 0, 0, 0, 0];
+}
+
 function opcionesPerfiles() {
-  const ps = Object.values(perfiles()).sort((a, b) => P.cmp([a.forma, a.a, a.nombre], [b.forma, b.a, b.nombre]));
+  const ps = Object.values(perfiles()).sort((a, b) => P.cmp(ordenPerfil(a), ordenPerfil(b)));
   const it = est.item;
+  const grupos = [];
+  for (const p of ps) {
+    const g = GRUPOS_PERFIL[grupoPerfil(p.forma, p.a, p.b)] || "Otros";
+    if (!grupos.length || grupos[grupos.length - 1][0] !== g) grupos.push([g, []]);
+    grupos[grupos.length - 1][1].push(`<option value="${esc(p.nombre)}">${esc(p.nombre)}</option>`);
+  }
+  const html = grupos.map(([g, ops]) => `<optgroup label="${esc(g)}">${ops.join("")}</optgroup>`).join("");
   for (const k of ["perfil_marco", "perfil_trav", "perfil_relleno"]) {
     const s = $(`#p-${k}`);
-    const ops = ps.map((p) => `<option value="${esc(p.nombre)}">${esc(p.nombre)}</option>`);
-    if (k === "perfil_trav") ops.unshift(`<option value="">Igual que el marco</option>`);
-    else if (!ps.some((p) => p.nombre === it[k])) ops.unshift(`<option value="">Elegí un perfil</option>`);
-    s.innerHTML = ops.join("");
+    let pre = "";
+    if (k === "perfil_trav") pre = `<option value="">Igual que el marco</option>`;
+    else if (!ps.some((p) => p.nombre === it[k])) pre = `<option value="">Elegí un perfil</option>`;
+    s.innerHTML = pre + html;
     s.value = ps.some((p) => p.nombre === it[k]) ? it[k] : "";
+  }
+  ponerFrente();
+}
+
+/** Botón «Frente» de cada lista: se ve si el perfil elegido tiene dos caras distintas; muestra sus dos medidas. */
+function ponerFrente() {
+  const it = est.item, ps = perfiles();
+  for (const [k, f] of Object.entries(FRENTE)) {
+    const caja = raiz.querySelector(`.p-frente[data-f="${f}"]`);
+    const p = ps[it[k]] || null;                    // travesaños «Igual que el marco» = siguen al marco (sin botón)
+    const ver = P.sePuedeGirar(p);
+    caja.hidden = !ver;
+    if (!ver) continue;
+    const [ra, rb] = caja.querySelectorAll("input");
+    ra.nextElementSibling.textContent = corto(p.a, 2);
+    rb.nextElementSibling.textContent = corto(p.b, 2);
+    ra.checked = it[f] !== "b";
+    rb.checked = it[f] === "b";
   }
 }
 
@@ -474,7 +521,12 @@ function armarEventos() {
     if (m && !e.target.closest("#hoja-perfiles")) seleccionar(m.dataset.m);
   });
   for (const k of ["perfil_marco", "perfil_trav", "perfil_relleno"]) {
-    $(`#p-${k}`).addEventListener("change", (e) => { est.item[k] = e.target.value; programar(0); });
+    $(`#p-${k}`).addEventListener("change", (e) => { est.item[k] = e.target.value; ponerFrente(); programar(0); });
+  }
+  for (const f of Object.values(FRENTE)) {                    // cambia la lista de corte: se recalcula
+    for (const r of raiz.querySelectorAll(`input[name="p-${f}"]`)) {
+      r.addEventListener("change", () => { if (r.checked) { est.item[f] = r.value; programar(0); } });
+    }
   }
   for (const r of raiz.querySelectorAll('input[name="p-armado"]')) {
     r.addEventListener("change", () => { if (r.checked) { est.item.armado = r.value; habilitar(); programar(0); } });
@@ -564,6 +616,10 @@ function estadoPerfil(i, escribiendo = false) {
 
 function abrirPerfiles() {
   abierto = -1; borrando = -1;
+  // ordenados por tipo al abrir (no mientras se escribe, para que la tarjeta no salte); sort estable: entre repetidos
+  // queda primero el mismo de antes
+  est.perfiles = est.perfiles.map((m, i) => [m, i]).sort((x, y) => P.cmp(ordenMaterial(x[0]), ordenMaterial(y[0])) || x[1] - y[1])
+    .map(([m]) => m);
   dibujarPerfiles();
   const d = $("#hoja-perfiles");
   if (typeof d.showModal === "function") d.showModal(); else d.setAttribute("open", "");
@@ -803,7 +859,7 @@ function lista() {
   $("#p-lista").innerHTML = c.filas.map((f) => `<li data-m="${f.marca}">
     <span class="p-chip" style="background:${f.color}">${f.marca}</span>
     <span class="p-largo">${med(f.largo, 1)} <small>mm</small></span><span class="p-cant">× ${f.cant}</span>
-    <span class="p-det">${esc(f.perfil.nombre)} · ${P.textoCorte(f.corte)}</span>${croquisSvg(f.corte)}
+    <span class="p-det">${esc(f.perfil.rotulo || f.perfil.nombre)} · ${P.textoCorte(f.corte)}</span>${croquisSvg(f.corte)}
     <span class="p-uso">${[...f.usos].sort().join(", ")}</span></li>`).join("");
   marcarLista();
 }
