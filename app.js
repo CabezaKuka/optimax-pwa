@@ -3,7 +3,7 @@
 import { moduloPorId } from "./modulos.js";
 import * as inicio from "./inicio.js";
 import { armarHojaPro, ponerContexto, abrirActivar } from "./hoja-pro.js";
-import { esPro, DESARROLLO, iniciar, licencia, avisoLicencia } from "./licencia.js";
+import { esPro, DESARROLLO, iniciar, licencia, avisoLicencia, revalidar } from "./licencia.js";
 
 const $ = (s) => document.querySelector(s);
 const pantalla = $("#pantalla");
@@ -92,13 +92,15 @@ if (esPro()) {
     $("#pie-lic").textContent = `PRO · ${lic.nombre}`;
     $("#pie-lic").hidden = false;
   }
+  // con internet, en segundo plano: si este equipo fue reemplazado por otro de la cuenta, vuelve a la DEMO
+  revalidar().then((r) => { if (r === "reemplazado") location.reload(); });
 } else if (avisoLicencia()) {
   $("#aviso-lic").innerHTML = "";
   $("#aviso-lic").append(avisoLicencia(), " ");
   const b = document.createElement("button");
   b.type = "button";
   b.className = "enlace";
-  b.textContent = "Activar de nuevo";
+  b.textContent = "Entrar con WhatsApp";
   b.addEventListener("click", abrirActivar);
   $("#aviso-lic").append(b);
   $("#aviso-lic").hidden = false;

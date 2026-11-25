@@ -1,14 +1,17 @@
-// Licencia PRO de la PWA: el mismo modelo que optiMAX para Windows.
+// Licencia PRO de la PWA: la compra queda a nombre del NÚMERO DE WHATSAPP del cliente (en el bot), con hasta 2 equipos
+// activos (celular, PC…).
 //
-//   - Cada dispositivo tiene un código (ej. 7K3Q-WXPM-2HDA, como el código de PC). Se crea al azar la primera vez y
-//     queda guardado en el navegador.
-//   - La clave (OPWA1-…) es un dato firmado con Ed25519 (versión + código del dispositivo + fecha + nombre), con el
-//     mismo formato que las claves de la PC pero con su propio par de llaves. Se verifica acá, sin internet, con la
-//     llave PÚBLICA (licencia-config.js). Una compra = un dispositivo.
-//   - El código PRO viaja dentro de la PWA, pero cifrado (pro.bin, AES-GCM). La primera vez, con internet, el
-//     dispositivo le manda la clave al bot (Railway); el bot verifica la firma y le devuelve la llave del paquete.
-//     Desde ahí anda sin internet.
-//   - Nunca va acá una forma de fabricar claves: eso es la llave privada, que tiene solo el vendedor.
+//   - Cada equipo tiene un código interno (ej. 7K3Q-WXPM-2HDA). Se crea al azar la primera vez y queda guardado en el
+//     navegador; el usuario no lo ve.
+//   - «Entrar con WhatsApp»: el bot da un código de un solo uso; la PWA abre WhatsApp con un mensaje para el bot y,
+//     cuando llega desde un número con licencia, el bot le da a este equipo su clave y la llave del código PRO.
+//   - La clave (OPWA1-…) es un dato firmado con Ed25519 (versión + código del equipo + fecha + nombre), con el mismo
+//     formato que las claves de la PC pero con su propio par de llaves. Se verifica acá, sin internet, con la llave
+//     PÚBLICA (licencia-config.js).
+//   - El código PRO viaja dentro de la PWA, pero cifrado (pro.bin, AES-GCM). Con la llave guardada anda sin internet.
+//   - Al abrir con internet, se le pregunta al bot si el equipo sigue activo (revalidar). Si fue reemplazado por otro
+//     equipo de la misma cuenta, vuelve a la DEMO. Sin internet sigue andando (sin plazo máximo).
+//   - Nunca va acá una forma de fabricar claves: eso es la llave privada, que está solo en el bot.
 //
 // En desarrollo (localhost) la PRO se prende con ?pro=1 (y se apaga con ?pro=0): el código sale de la carpeta pro/
 // (el repo privado clonado ahí; está en .gitignore), sin clave ni paquete.
@@ -23,6 +26,7 @@ const CLAVE_DEV = "optimax-pro-dev";
 const CLAVE_DISP = "optimax-dispositivo";
 const CLAVE_LIC = "optimax-licencia";
 const CLAVE_PAQ = "optimax-paquete";
+const CLAVE_AVISO = "optimax-aviso";
 const NAVEGADOR = typeof location !== "undefined";
 export const DESARROLLO = NAVEGADOR && ["localhost", "127.0.0.1", "[::1]"].includes(location.hostname);
 const BASE_PRO = NAVEGADOR ? new URL("./pro/", import.meta.url).href : "";
@@ -143,19 +147,29 @@ export function armarModulos(archivos, base = BASE_PRO) {
   return urls;
 }
 
-async function pedirLlave(clave, codigo) {
+/** POST al bot. Devuelve el JSON; lanza Error con un mensaje para el usuario si no hay conexión o el bot falla. */
+async function alBot(ruta, cuerpo) {
   if (!SERVIDOR || SERVIDOR === "PENDIENTE") throw new Error("Esta versión todavía no tiene el servidor de activación configurado.");
   let r;
   try {
-    r = await fetch(`${SERVIDOR.replace(/\/$/, "")}/pwa/llave`, {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ clave, codigo }),
+    r = await fetch(`${SERVIDOR.replace(/\/$/, "")}${ruta}`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(cuerpo),
     });
   } catch {
     throw new Error("Sin conexión: para activar hace falta internet una sola vez.");
   }
   let d = {};
   try { d = await r.json(); } catch { /* respuesta sin JSON */ }
-  if (!r.ok || !d.llave) throw new Error(d.error || `El servidor no respondió bien (${r.status}).`);
+  if (!r.ok) throw new Error(d.error || `El servidor no respondió bien (${r.status}).`);
+  return d;
+}
+
+const MSJ_REEMPLAZADO = "La PRO está activa en otros equipos de tu cuenta.";
+
+async function pedirLlave(clave, codigo) {
+  const d = await alBot("/pwa/equipo", { clave, codigo });
+  if (!d.activo) throw new Error(MSJ_REEMPLAZADO);
+  if (!d.llave) throw new Error("El servidor no mandó la llave del código PRO.");
   return d.llave;
 }
 
@@ -185,6 +199,8 @@ async function prepararPaquete(clave, codigo, { pedir = true } = {}) {
 /** Al arrancar (app.js, antes de mostrar nada): clave guardada → verificar → abrir el código PRO. */
 export async function iniciar() {
   if (!NAVEGADOR || modoDev) return;
+  const aviso = leer(CLAVE_AVISO);                       // lo deja revalidar() antes de recargar
+  if (aviso) { estado.aviso = aviso; guardar(CLAVE_AVISO, null); }
   const clave = leer(CLAVE_LIC);
   if (!clave) return;
   const codigo = codigoDispositivo();
@@ -199,17 +215,46 @@ export async function iniciar() {
   }
 }
 
-/** Activa la clave en este dispositivo (con internet). Lanza Error con un mensaje para el usuario si no se pudo. */
-export async function activar(clave) {
-  clave = String(clave).replace(/\s+/g, "");
+/** «Entrar con WhatsApp», paso 1 (con internet): {token, whatsapp, texto} para abrir WhatsApp con el mensaje al bot. */
+export async function pedirIngreso() {
+  const d = await alBot("/pwa/ingreso", { codigo: codigoDispositivo() });
+  if (!d.token || !d.whatsapp || !d.texto) throw new Error("El servidor no respondió bien.");
+  return d;
+}
+
+/**
+ * Paso 2: ¿llegó el mensaje? Devuelve "pendiente" | "sin_licencia" | "vencido", o {nombre} cuando el equipo quedó
+ * activado (clave verificada acá y código PRO abierto). Lanza Error si no hay conexión o algo no cierra.
+ */
+export async function consultarIngreso(token) {
+  const d = await alBot("/pwa/ingreso/estado", { token });
+  if (d.estado !== "ok") return d.estado || "pendiente";
   const codigo = codigoDispositivo();
-  const lic = await verificarClave(clave, codigo);
-  guardar(CLAVE_PAQ, null);                            // la llave se pide de nuevo con esta clave
-  await prepararPaquete(clave, codigo, { pedir: true });
-  guardar(CLAVE_LIC, clave);
+  const lic = await verificarClave(d.clave, codigo);
+  const paquete = await abrirPaquete(await bajarPaquete(), d.llave);
+  guardar(CLAVE_PAQ, d.llave);
+  guardar(CLAVE_LIC, d.clave);
+  estado.modulos = armarModulos(paquete.archivos);
   estado.licencia = lic;
   estado.aviso = "";
-  return lic;
+  try { await navigator.storage?.persist?.(); } catch { /* el navegador puede negarlo: igual queda guardada */ }
+  return { nombre: lic.nombre };
+}
+
+/**
+ * Al abrir con internet: ¿este equipo sigue activo en la cuenta? Si fue reemplazado, borra la licencia, deja el aviso
+ * para el próximo arranque y devuelve "reemplazado" (la app recarga). Sin conexión o con el bot caído no cambia nada.
+ */
+export async function revalidar() {
+  if (!NAVEGADOR || modoDev || !estado.licencia || navigator.onLine === false) return "sin cambios";
+  const clave = leer(CLAVE_LIC);
+  let d;
+  try { d = await alBot("/pwa/equipo", { clave, codigo: codigoDispositivo() }); } catch { return "sin cambios"; }
+  if (d.activo !== false) return "activo";
+  guardar(CLAVE_LIC, null);
+  guardar(CLAVE_PAQ, null);
+  guardar(CLAVE_AVISO, `${MSJ_REEMPLAZADO} Para usarla en este, entrá con WhatsApp.`);
+  return "reemplazado";
 }
 
 /** ¿Está activa la PRO en este dispositivo? */
