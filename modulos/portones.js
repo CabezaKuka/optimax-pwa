@@ -53,12 +53,14 @@ function cargarMemoria() {
   const out = { ...INICIAL, ...m };
   out.item = P.normalizarItem({ ...ITEM_INICIAL, ...(m.item || {}) });
   if (!Array.isArray(out.perfiles)) out.perfiles = PERFILES_EJEMPLO;
+  out.perfiles = out.perfiles.map((p) => ({ ...p }));
+  renombrar(out);                                         // nombres de antes (a mano) → forma + medidas
   return out;
 }
 function guardar() {
   try { localStorage.setItem(CLAVE, JSON.stringify(est)); } catch { /* sin almacenamiento */ }
 }
-const perfiles = () => P.perfilesDe(est.perfiles);
+const perfiles = () => P.perfilesDe(est.perfiles.filter((m, i) => !repetido(est.perfiles, i)));
 
 export async function montar(cont) {
   raiz = cont;
@@ -195,10 +197,10 @@ const PLANTILLA = `
   <form method="dialog" class="hoja">
     <button class="cerrar" value="cerrar" aria-label="Cerrar">×</button>
     <h2 id="perfiles-tit">Perfiles</h2>
-    <p>Los perfiles que usás: forma y medidas (ej. 40x40x2, Ø12, 1 1/2 x 3/16"), largo de la barra que comprás y su precio.</p>
+    <p class="nota">Tocá un perfil para cambiarlo. El nombre se arma solo con la forma y las medidas.</p>
     <ul class="perfiles" id="perfiles"></ul>
-    <button type="button" class="btn-sec" id="perfil-nuevo">Agregar perfil</button>
-    <button type="submit" class="btn-prim" value="listo">Listo</button>
+    <button type="button" class="btn-sec pe-nuevo" id="perfil-nuevo"><span aria-hidden="true">+</span> Agregar perfil</button>
+    <div class="pe-pie"><button type="submit" class="btn-prim" value="listo">Listo</button></div>
   </form>
 </dialog>`;
 
@@ -433,6 +435,7 @@ function armarEventos() {
       return;
     }
     if (e.target.closest("#perfil-nuevo")) { nuevoPerfil(); return; }
+    if (e.target.closest("#perfiles") && clickPerfiles(e)) return;
     const d = $("#hoja-perfiles");
     if (e.target === d) { d.close(); return; }
     const m = e.target.closest("[data-m]");
@@ -452,6 +455,7 @@ function armarEventos() {
   $("#p-cotas").addEventListener("change", (e) => { est.cotas = e.target.checked; guardar(); dibujar(); });
   $("#p-ampliar").addEventListener("click", abrirCompleta);
   $("#p-admin").addEventListener("click", abrirPerfiles);
+  $("#hoja-perfiles").addEventListener("close", cerrarPerfiles);
   let ancho = 0;
   observador = new ResizeObserver(() => {
     const d = raiz.querySelector("#p-dibujo");
@@ -467,66 +471,172 @@ function programar(ms = 300) {
 }
 
 // ------------------------------------------------------------------ perfiles
+// Nombre automático: forma + medidas como las escribió (x → ×). Si hay dos con la misma forma y medidas y distinto
+// largo de barra, los dos llevan el largo («Tubo cuadrado 40×40×2 · 6 m»). Igual forma, medidas y largo = repetido:
+// se avisa y no se usa.
+const FORMA_CORTA = { tubo_red: "Tubo redondo", macizo_cuad: "Macizo cuadrado", macizo_red: "Macizo redondo", planchuela: "Planchuela", angulo: "Ángulo" };
+const EJEMPLO = { tubo: "40x40x2", tubo_red: "Ø1\" x 2", macizo_cuad: "12", macizo_red: "Ø12", planchuela: "1 1/2 x 3/16\"", angulo: "40x40x3" };
+const USOS = [["perfil_marco", "el marco"], ["perfil_trav", "los travesaños"], ["perfil_relleno", "el relleno"]];
+const TACHO = `<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>`;
+const FLECHA = `<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>`;
+let abierto = -1, borrando = -1;
+
+const textoMed = (t) => String(t || "").trim().replace(/\s+/g, " ").replace(/\s*[xX*×]\s*/g, "×");
+function base(m) {
+  const md = P.leerMedidas(m.forma, m.medidas || "");
+  const forma = m.forma === "tubo" ? (md && md[0] !== md[1] ? "Tubo rectangular" : "Tubo cuadrado") : (FORMA_CORTA[m.forma] || "Perfil");
+  const t = textoMed(m.medidas);
+  return { nombre: t ? `${forma} ${t}` : forma, clave: `${m.forma}|${md ? md.map((v) => +v.toFixed(3)).join("×") : t.toLowerCase()}` };
+}
+const largoM = (v) => `${corto(Number(v) / 1000, 3)} m`;
+/** true si un perfil anterior tiene la misma forma, medidas y largo de barra. */
+function repetido(lista, i) {
+  const k = base(lista[i]).clave;
+  return lista.slice(0, i).some((o) => base(o).clave === k && Number(o.largo) === Number(lista[i].largo));
+}
+/** Pone los nombres automáticos y lleva las elecciones del trabajo (marco, travesaños, relleno) al nombre nuevo. */
+function renombrar(e = est) {
+  const lista = e.perfiles, antes = lista.map((m) => m.nombre), bs = lista.map(base);
+  const largos = {};
+  bs.forEach((b, i) => { (largos[b.clave] ||= new Set()).add(Number(lista[i].largo)); });
+  lista.forEach((m, i) => { m.nombre = bs[i].nombre + (largos[bs[i].clave].size > 1 ? ` · ${largoM(m.largo)}` : ""); });
+  for (const [k] of USOS) {
+    const i = antes.indexOf(e.item[k]);
+    if (e.item[k] && i >= 0) e.item[k] = lista[i].nombre;
+  }
+}
+
+/** Estado de un perfil: resumen de la cabecera y aviso de adentro. */
+function estadoPerfil(i, escribiendo = false) {
+  const m = est.perfiles[i], p = P.perfilDe(m), vacio = !String(m.medidas || "").trim();
+  if (repetido(est.perfiles, i)) return { mal: true, res: "Repetido", aviso: "Ya tenés ese perfil (misma forma, medidas y barra)." };
+  if (vacio) return { mal: true, res: "Faltan las medidas", aviso: "Cargá las medidas.", gris: true };
+  if (!p) return { mal: true, res: "Medidas mal cargadas", aviso: `No se entienden las medidas. Ejemplo: ${EJEMPLO[m.forma] || "40x40x2"}`, gris: escribiendo };
+  const kg = `${n1(p.kgM())} kg/m${p.pulgadas ? " · pulgadas" : ""}`;
+  return { mal: false, res: `Barra ${corto(m.largo, 1)} mm · ${kg}${m.precio ? ` · precio ${corto(m.precio, 2)}` : ""}`, aviso: kg, gris: true };
+}
+
 function abrirPerfiles() {
+  abierto = -1; borrando = -1;
   dibujarPerfiles();
   const d = $("#hoja-perfiles");
   if (typeof d.showModal === "function") d.showModal(); else d.setAttribute("open", "");
 }
 
+/** Al cerrar: se descartan los perfiles nuevos que quedaron sin medidas. */
+function cerrarPerfiles() {
+  const antes = est.perfiles.length;
+  est.perfiles = est.perfiles.filter((m) => String(m.medidas || "").trim());
+  if (est.perfiles.length !== antes) { renombrar(); opcionesPerfiles(); programar(0); }
+  abierto = -1; borrando = -1;
+}
+
+function usosDe(nombre) {
+  const it = est.item, out = [];
+  for (const [k, t] of USOS) {
+    if (k === "perfil_trav" && !(it.n_trav > 0)) continue;
+    if (k === "perfil_relleno" && it.relleno === "chapa") continue;
+    if (it[k] === nombre) out.push(t);
+  }
+  return out;
+}
+
 function dibujarPerfiles() {
   const ul = $("#perfiles");
-  const nombres = est.perfiles.map((m) => m.nombre.trim());
   ul.innerHTML = est.perfiles.map((m, i) => {
-    const p = P.perfilDe(m);
-    const repetido = nombres.indexOf(m.nombre.trim()) !== i;
-    const estado = repetido ? `<span class="perfil-mal">Ese nombre ya está: cambialo.</span>`
-      : p ? `${n1(p.kgM())} kg/m${p.pulgadas ? " · pulgadas" : ""}` : `<span class="perfil-mal">No se entienden las medidas.</span>`;
-    return `<li class="perfil-ed" data-i="${i}">
-      <span class="entrada pe-nombre"><input data-c="nombre" type="text" aria-label="Nombre del perfil" value="${esc(m.nombre)}"></span>
-      <button type="button" class="borrar" data-borrar="${i}" aria-label="Sacar ${esc(m.nombre)}">×</button>
-      <select data-c="forma" aria-label="Forma">${P.FORMAS.map(([k, t]) => `<option value="${k}"${k === m.forma ? " selected" : ""}>${t}</option>`).join("")}</select>
-      <span class="entrada"><input data-c="medidas" type="text" spellcheck="false" aria-label="Medidas" placeholder="40x40x2" value="${esc(m.medidas)}"></span>
-      <label class="pe-num"><span>Barra</span><span class="entrada"><input data-c="largo" type="text" inputmode="decimal" value="${corto(m.largo, 1)}"><span class="unidad">mm</span></span></label>
-      <label class="pe-num${pro ? "" : " pe-bloq"}"><span>Precio</span><span class="entrada"><input data-c="precio" type="text" inputmode="decimal" placeholder="0" value="${m.precio ? corto(m.precio, 2) : ""}"${pro ? "" : " disabled"}></span></label>
-      <span class="pe-estado">${estado}</span></li>`;
+    const e = estadoPerfil(i), ab = i === abierto, usos = usosDe(m.nombre);
+    return `<li class="perfil-ed${ab ? " abierto" : ""}${e.mal ? " mal" : ""}" data-i="${i}">
+      <button type="button" class="pe-cab" aria-expanded="${ab}">
+        <span class="pe-tit">${esc(m.nombre)}</span>
+        <span class="pe-res">${esc(e.res)}</span>
+        <span class="pe-flecha">${FLECHA}</span>
+      </button>
+      <div class="pe-cuerpo"${ab ? "" : " hidden"}>
+        <label class="pe-c pe-ancho"><span>Forma</span><select data-c="forma">${P.FORMAS.map(([k, t]) => `<option value="${k}"${k === m.forma ? " selected" : ""}>${t}</option>`).join("")}</select></label>
+        <label class="pe-c pe-ancho"><span>Medidas</span><span class="entrada"><input data-c="medidas" type="text" spellcheck="false" autocomplete="off" placeholder="ej. ${esc(EJEMPLO[m.forma] || "")}" value="${esc(m.medidas)}"></span></label>
+        <label class="pe-c"><span>Largo de la barra</span><span class="entrada"><input data-c="largo" type="text" inputmode="decimal" value="${corto(m.largo, 1)}"><span class="unidad">mm</span></span></label>
+        <label class="pe-c${pro ? "" : " pe-bloq"}"><span>Precio de la barra${pro ? "" : " (PRO)"}</span><span class="entrada"><input data-c="precio" type="text" inputmode="decimal" placeholder="0" value="${m.precio ? corto(m.precio, 2) : ""}"${pro ? "" : " disabled"}></span></label>
+        <p class="pe-estado${e.gris ? "" : " perfil-mal"}">${esc(e.aviso)}</p>
+        ${i === borrando ? `<div class="pe-confirma" role="alert">
+          <p>¿Borrar <b>${esc(m.nombre)}</b>?${usos.length ? ` Lo usa ${usos.join(" y ")} del trabajo.` : ""}</p>
+          <div class="pe-confirma-b"><button type="button" class="btn-sec btn-quieto" data-acc="no">Cancelar</button><button type="button" class="pe-si" data-acc="si">Borrar</button></div>
+        </div>` : `<button type="button" class="pe-borrar" data-acc="borrar">${TACHO}Borrar perfil</button>`}
+      </div></li>`;
   }).join("");
   for (const inp of ul.querySelectorAll("[data-c]")) {
     const i = Number(inp.closest(".perfil-ed").dataset.i), c = inp.dataset.c;
-    const ev = inp.tagName === "SELECT" ? "change" : "input";
-    inp.addEventListener(ev, () => cambioPerfil(i, c, inp));
-    if (c === "nombre") inp.addEventListener("change", () => dibujarPerfiles());
-  }
-  for (const b of ul.querySelectorAll("[data-borrar]")) {
-    b.addEventListener("click", () => { est.perfiles.splice(Number(b.dataset.borrar), 1); dibujarPerfiles(); opcionesPerfiles(); programar(0); });
+    inp.addEventListener(inp.tagName === "SELECT" ? "change" : "input", () => cambioPerfil(i, c, inp));
+    if (inp.tagName !== "SELECT") {
+      inp.addEventListener("change", () => refrescarPerfiles(-1));            // al salir del campo, avisos completos
+      inp.addEventListener("focus", () => { if (c !== "medidas") inp.select(); });
+    }
   }
 }
 
-function nuevoPerfil() {
-  let n = 1;
-  while (est.perfiles.some((m) => m.nombre === `Perfil ${n}`)) n++;
-  est.perfiles.push({ nombre: `Perfil ${n}`, forma: "tubo", medidas: "", largo: 6000, precio: 0 });
+function clickPerfiles(e) {
+  const li = e.target.closest(".perfil-ed");
+  if (!li) return false;
+  const i = Number(li.dataset.i);
+  if (e.target.closest(".pe-cab")) {
+    abierto = abierto === i ? -1 : i; borrando = -1;
+    dibujarPerfiles();
+    if (abierto === i) $(`#perfiles .perfil-ed[data-i="${i}"]`)?.scrollIntoView({ block: "nearest" });
+    return true;
+  }
+  const acc = e.target.closest("[data-acc]")?.dataset.acc;
+  if (!acc) return false;
+  if (acc === "borrar") borrando = i;
+  else if (acc === "no") borrando = -1;
+  else if (acc === "si") {
+    est.perfiles.splice(i, 1);
+    abierto = -1; borrando = -1;
+    renombrar(); opcionesPerfiles(); programar(0);
+  }
   dibujarPerfiles();
-  const ins = raiz.querySelectorAll('#perfiles [data-c="medidas"]');
-  ins[ins.length - 1]?.focus();
+  return true;
+}
+
+function nuevoPerfil() {
+  est.perfiles.push({ nombre: "", forma: "tubo", medidas: "", largo: 6000, precio: 0 });
+  renombrar();
+  abierto = est.perfiles.length - 1; borrando = -1;
+  dibujarPerfiles();
+  const inp = $(`#perfiles .perfil-ed[data-i="${abierto}"] [data-c="medidas"]`);
+  inp?.closest(".perfil-ed").scrollIntoView({ block: "nearest" });
+  inp?.focus();
+}
+
+/** Actualiza nombres, resúmenes y avisos sin volver a dibujar (no se pierde el foco ni el teclado). */
+function refrescarPerfiles(escribiendo) {
+  for (const li of $("#perfiles").querySelectorAll(".perfil-ed")) {
+    const i = Number(li.dataset.i), e = estadoPerfil(i, i === escribiendo);
+    li.querySelector(".pe-tit").textContent = est.perfiles[i].nombre;
+    li.querySelector(".pe-res").textContent = e.res;
+    li.classList.toggle("mal", e.mal);
+    const av = li.querySelector(".pe-estado");
+    av.textContent = e.aviso;
+    av.classList.toggle("perfil-mal", !e.gris);
+  }
 }
 
 function cambioPerfil(i, c, inp) {
   const m = est.perfiles[i];
-  if (c === "nombre") {
-    const viejo = m.nombre, nuevo = inp.value.trim() || "Perfil";
-    for (const k of ["perfil_marco", "perfil_trav", "perfil_relleno"]) if (est.item[k] === viejo) est.item[k] = nuevo;
-    m.nombre = nuevo;
-  } else if (c === "largo" || c === "precio") {
+  if (c === "largo" || c === "precio") {
     let v;
     try { v = inp.value.trim() === "" ? 0 : numero(inp.value); } catch { v = NaN; }
-    inp.closest(".entrada").classList.toggle("mal", !(v >= 0) || (c === "largo" && !(v > 0)));
-    if (!(v >= 0) || (c === "largo" && !(v > 0))) return;
+    const ok = v >= 0 && (c !== "largo" || v > 0);
+    inp.closest(".entrada").classList.toggle("mal", !ok);
+    if (!ok) return;
     m[c] = v;
   } else {
     m[c] = inp.value;
+    if (c === "forma") {
+      const med = inp.closest(".perfil-ed").querySelector('[data-c="medidas"]');
+      med.placeholder = `ej. ${EJEMPLO[m.forma] || ""}`;
+    }
   }
-  const li = inp.closest(".perfil-ed"), p = P.perfilDe(m);
-  if (c !== "nombre") li.querySelector(".pe-estado").innerHTML = p ? `${n1(p.kgM())} kg/m${p.pulgadas ? " · pulgadas" : ""}` : `<span class="perfil-mal">No se entienden las medidas.</span>`;
+  renombrar();
+  refrescarPerfiles(c === "medidas" ? i : -1);
   opcionesPerfiles();
   programar(250);
 }
