@@ -710,3 +710,15 @@ body.sin-scroll { overflow: hidden; }
 .t-borrar { flex: none; width: 48px; border: 0; border-left: 1px solid var(--linea); background: transparent; color: var(--gris); }
 .t-borrar svg { width: 20px; height: 20px; }
 @media (min-width: 600px) { .hoja-pro.hoja-trabajos { width: 520px; } }
+
+/* ------------------------------------------------------------ vista 3D de portones */
+.p-3d .p-completa-barra button { padding: 0 14px; font-size: 16px; font-weight: 600; }
+.p-3d-lienzo { flex: 1; position: relative; min-height: 0; touch-action: none; background: #eef1f4; }
+.p-3d-lienzo canvas { display: block; touch-action: none; }
+.p-3d-cargando { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; }
+.p-3d-lienzo .error-txt { margin: 24px 16px; }
+.p-3d-ayuda {
+  position: absolute; left: 50%; bottom: calc(12px + env(safe-area-inset-bottom)); transform: translateX(-50%);
+  margin: 0; padding: 6px 12px; border-radius: 16px; background: rgb(255 255 255 / .85); color: var(--gris);
+  font-size: 13px; white-space: nowrap; pointer-events: none;
+}

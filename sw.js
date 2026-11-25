@@ -4,7 +4,7 @@ const VERSION = "optimax-pwa-19";
 const ARCHIVOS = [
   "./", "index.html", "app.css", "app.js", "vista.js", "manifest.webmanifest",
   "modulos.js", "inicio.js", "iconos.js", "licencia.js", "licencia-config.js", "vendor/ed25519.js", "hoja-pro.js", "salida.js", "trabajos.js", "modulos/chapa.js", "modulos/barras.js", "barras/motor.js",
-  "modulos/guillotina.js", "guillotina/motor.js", "modulos/portones.js", "portones/motor.js", "barras/trabajador.js",
+  "modulos/guillotina.js", "guillotina/motor.js", "modulos/portones.js", "modulos/portones3d.js", "portones/motor.js", "barras/trabajador.js",
   "geo/base.js", "geo/index.js", "geo/medidas.js",
   "geo/t_cil_cil.js", "geo/codo_sectores.js", "geo/tronco_cono.js", "geo/tronco_piramide.js",
   "fuentes/barlow-latin-400-normal.woff2", "fuentes/barlow-latin-600-normal.woff2",
@@ -34,6 +34,11 @@ self.addEventListener("activate", (e) => {
 self.addEventListener("fetch", (e) => {
   const req = e.request;
   if (req.method !== "GET" || new URL(req.url).origin !== location.origin) return;
+  // three.js (vista 3D, ~600 KB) no va en la instalación: se guarda la primera vez que alguien abre el 3D
+  const alUsar = new URL(req.url).pathname.endsWith("/vendor/three.min.js");
   e.respondWith(caches.match(req, { ignoreSearch: true }).then((r) => r ||
-    fetch(req).catch(() => (req.mode === "navigate" ? caches.match("index.html") : Response.error()))));
+    fetch(req).then((resp) => {
+      if (alUsar && resp.ok) { const copia = resp.clone(); caches.open(VERSION).then((c) => c.put(req, copia)); }
+      return resp;
+    }).catch(() => (req.mode === "navigate" ? caches.match("index.html") : Response.error()))));
 });
