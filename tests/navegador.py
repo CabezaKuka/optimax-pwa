@@ -374,8 +374,9 @@ def portones_demo(pg, base, cap):
         pg.screenshot(path=f"{cap}/c_pasantes_atras_vista_3d.png")
     pg.click(".p-3d .p-c-cerrar")
     cerca = lambda a, b: abs(a - b) < 0.01
-    control(cerca(pl["MARCO"][1], 20) and cerca(pl["TRAVESANO"][1], 20) and cerca(pl["TRAVESANO"][0], 0)
-            and cerca(pl["BARRA"][1], 0) and cerca(pl["BARRA"][0], -20) and not av, f"3D pasantes: travesaño al ras adelante, barrotes detrás ({pl})")
+    # marco de ángulo: el relleno va detrás de la cara (20 − 3 = 17); 20 + 20 no entra en los 37 mm de adentro → aviso
+    control(cerca(pl["MARCO"][1], 20) and cerca(pl["TRAVESANO"][1], 17) and cerca(pl["TRAVESANO"][0], -3)
+            and cerca(pl["BARRA"][1], -3) and cerca(pl["BARRA"][0], -23) and av, f"3D pasantes con ángulo: travesaño detrás de la cara, barrotes detrás ({pl})")
     control(cu == pz + 4, f"3D: el marco de ángulo con su ala ({cu} cuerpos, {pz} piezas)")
     pg.check("input[name=p-trav_lado][value=atras]")
     pg.wait_for_timeout(400)
@@ -384,8 +385,15 @@ def portones_demo(pg, base, cap):
         pg.wait_for_timeout(500)
         pg.screenshot(path=f"{cap}/c_pasantes_atras_3d.png")
     pg.click(".p-3d .p-c-cerrar")
-    control(cerca(pl["BARRA"][1], 20) and cerca(pl["TRAVESANO"][1], 0) and cerca(pl["TRAVESANO"][0], -20) and not av,
-            "3D pasantes: barrotes adelante, travesaño detrás")
+    control(cerca(pl["BARRA"][1], 17) and cerca(pl["TRAVESANO"][1], -3) and cerca(pl["TRAVESANO"][0], -23),
+            "3D pasantes con ángulo: barrotes adelante, travesaño detrás")
+    pg.select_option("#p-perfil_marco", "Tubo cuadrado 40×40×2")
+    pg.check("input[name=p-trav_lado][value=adelante]")
+    pg.wait_for_timeout(600)
+    pl, av, cu, pz = planos3d()
+    pg.click(".p-3d .p-c-cerrar")
+    control(cerca(pl["TRAVESANO"][1], 20) and cerca(pl["BARRA"][1], 0) and cerca(pl["BARRA"][0], -20) and not av and cu == pz,
+            "3D pasantes con tubo de 40: al ras del frente, entran justo")
     pg.select_option("#p-perfil_marco", "Tubo cuadrado 30×30×1,5")
     pg.wait_for_timeout(600)
     pl, av, cu, pz = planos3d()

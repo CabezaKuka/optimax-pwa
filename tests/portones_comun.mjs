@@ -69,7 +69,8 @@ export function volcarCalc(c, conBarras = true) {
       return o;
     }),
     errores: c.errores, avisos: c.avisos, herrajes: c.herrajes, piezas: c.piezas, kg_chapa: c.kg_chapa,
-    m2_chapa: c.m2_chapa, kg_neto: c.kg_neto, sold_m: c.sold_m, pint_m2: c.pint_m2, items: c.items,
+    m2_chapa: c.m2_chapa, kg_neto: c.kg_neto, sold_m: c.sold_m, pint_m2: c.pint_m2,
+    items: c.items.map(({ trav_lado: _, ...x }) => x),       // trav_lado: solo PWA (adelante / atrás en pasantes)
     resultados: c.resultados.map(volcarR), verificar: P.verificar(c),
   };
   if (conBarras) Object.assign(out, { kg_compra: c.kg_compra, n_barras: c.n_barras, costos: c.costos });
@@ -102,4 +103,13 @@ export function generales(ref) {
   }
   return [ref.medidas.length + ref.deducir.length + ref.kg_m.length + ref.distribuir.length
     + Object.keys(ref.miniaturas).length + ref.demo.length, malas];
+}
+
+/**
+ * ¿El caso tiene algún ítem con marco de ángulo? Regla nueva de la PWA (25-nov, Max: travesaños, relleno y chapa
+ * adentro de la L, hasta las alas); la PC todavía no la tiene: esos casos no se comparan con el escritorio.
+ */
+export function conMarcoAngulo(ref, caso) {
+  const angulos = new Set(ref.materiales.filter((m) => m.forma === "angulo").map((m) => m.nombre));
+  return caso.items.some((it) => angulos.has(it.perfil_marco));
 }

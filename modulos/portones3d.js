@@ -8,11 +8,13 @@
 //   - Chapa ciega: placa del espesor de la chapa.
 // Profundidad (z, hacia el que mira): el marco centrado en z = 0. A tope: todo centrado. Pasantes (travesaños
 // superpuestos, 25-nov, Max): el de adelante (travesaño o barrotes, a elegir) al ras de la cara del frente del marco y
-// el otro apoyado detrás. Unidades en mm, y hacia arriba (como la elevación).
+// el otro apoyado detrás. Marco de ángulo (25-nov, Max): travesaños, relleno y chapa adentro de la L, apoyados detrás de
+// la cara (el cálculo ya los alarga hasta las alas). Unidades en mm, y hacia arriba (como la elevación).
 // three.js (vendor/three.min.js) se carga recién al abrir la vista.
 
-const COLOR = { MARCO: "#46596c", TRAVESANO: "#71879b", BARRA: "#9db3c7", CHAPA: "#c9d1d9" };
-const BORDE = "#1d2833";
+// ámbar de herrería (25-nov, Max): marco más oscuro, travesaños en el color del oficio, barrotes y chapa más claros
+const COLOR = { MARCO: "#a65507", TRAVESANO: "#d97706", BARRA: "#f4b54f", CHAPA: "#f7deb0" };
+const BORDE = "#3d2203";
 const REDONDOS = new Set(["tubo_red", "macizo_red"]);
 const fmt = (v) => String(Math.round(v * 10) / 10).replace(".", ",");
 
@@ -29,19 +31,23 @@ export function piezas3D(R, perfiles, { espChapa = 1.5, pasantes = false, travAt
   const prof = (f) => (f.p ? profundidad(f.p) : Math.max(0.5, Number(espChapa) || 1.5));
   const maxCapa = (c) => Math.max(0, ...formas.filter((f) => f.capa === c).map(prof));
   const Dm = maxCapa("MARCO") || maxCapa("BARRA") || 20;
+  const pmAng = formas.find((f) => f.capa === "MARCO" && f.p && f.p.forma === "angulo" && f.p.t > 0)?.p || null;
+  const frente = pmAng ? Dm / 2 - pmAng.t : Dm / 2;      // donde apoya el relleno: detrás de la cara del ángulo
+  const hondo = pmAng ? Dm - pmAng.t : Dm;                // lugar para el relleno dentro del marco
   const adelante = travAtras ? "BARRA" : "TRAVESANO", atras = travAtras ? "TRAVESANO" : "BARRA";
   const dAdel = maxCapa(adelante), dAtras = maxCapa(atras);
   let aviso = "";
-  if (pasantes && dAdel + dAtras > Dm + 0.05) {
+  if (pasantes && dAdel + dAtras > hondo + 0.05) {
     aviso = `Los ${travAtras ? "barrotes" : "travesaños"} y los ${travAtras ? "travesaños" : "barrotes"} juntos ` +
-      `(${fmt(dAdel + dAtras)} mm) son más gruesos que el marco (${fmt(Dm)} mm): sobresalen atrás.`;
+      `(${fmt(dAdel + dAtras)} mm) son más gruesos que ${pmAng ? "el lugar detrás de la cara del ángulo" : "el marco"} (${fmt(hondo)} mm): sobresalen atrás.`;
   }
   const piezas = [];
   for (const f of formas) {
     const d = prof(f);
     let z1 = d / 2;                                          // cara de adelante
-    if (pasantes && f.capa === adelante) z1 = Dm / 2;
-    else if (pasantes && f.capa === atras) z1 = Dm / 2 - dAdel;
+    if (pasantes && f.capa === adelante) z1 = frente;
+    else if (pasantes && f.capa === atras) z1 = frente - dAdel;
+    else if (pmAng && f.capa !== "MARCO") z1 = frente;     // a tope o chapa: apoyado detrás de la cara del ángulo
     const z0 = z1 - d;
     if (f.p && REDONDOS.has(f.p.forma)) {
       piezas.push({ capa: f.capa, tipo: "cilindro", ...eje(f.pts), d: f.p.a, z: (z0 + z1) / 2 });
@@ -143,8 +149,8 @@ export async function abrir3D(R, perfiles, { espChapa = 1.5, piso = false, pasan
 
   const escena = new T.Scene();
   escena.background = new T.Color("#eef1f4");
-  escena.add(new T.HemisphereLight("#ffffff", "#8a95a3", 1.6));
-  const sol = new T.DirectionalLight("#ffffff", 1.8);
+  escena.add(new T.HemisphereLight("#ffffff", "#b9a88f", 2.4));
+  const sol = new T.DirectionalLight("#ffffff", 2.2);
   sol.position.set(0.6, 1, 0.9);
   escena.add(sol);
   const sol2 = new T.DirectionalLight("#ffffff", 0.5);
@@ -156,7 +162,7 @@ export async function abrir3D(R, perfiles, { espChapa = 1.5, piso = false, pasan
   basura.push(lineas);
   const material = (c) => {
     if (!mats[c]) {
-      mats[c] = new T.MeshStandardMaterial({ color: COLOR[c] || COLOR.BARRA, metalness: 0.35, roughness: 0.55,
+      mats[c] = new T.MeshStandardMaterial({ color: COLOR[c] || COLOR.BARRA, metalness: 0.1, roughness: 0.6,
         polygonOffset: true, polygonOffsetFactor: c === "BARRA" ? 2 : c === "CHAPA" ? 3 : c === "TRAVESANO" ? 1 : 0,
         polygonOffsetUnits: 1 });
       basura.push(mats[c]);

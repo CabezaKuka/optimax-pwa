@@ -387,7 +387,7 @@ export function croquis(corte, L = 1.0, h = 0.25) {
 }
 
 /** Barra de ancho perfil.a cuyo eje es la recta n·p = s (θ desde la horizontal), recortada por 'planos'. */
-function piezaInclinada(R, perfil, s, theta, planos, uso) {
+function piezaInclinada(R, perfil, s, theta, planos, uso, prueba = false) {
   const th = rad(theta);
   const d = [Math.cos(th), Math.sin(th)];
   const n = [-d[1], d[0]];
@@ -401,6 +401,7 @@ function piezaInclinada(R, perfil, s, theta, planos, uso) {
   const proy = poly.map(([x, y]) => d[0] * x + d[1] * y);
   const largo = Math.max(...proy) - Math.min(...proy);                 // punta a punta
   if (largo < Math.max(MIN_RECORTE, 2 * a)) return null;
+  if (prueba) return true;
   const [tmin, tmax] = eje;
   const corte = claveCorte(corteExtremo(p0, d, n, a, planos, false), corteExtremo(p0, d, n, a, planos, true));
   R.formas.push(["BARRA", poly, clave(perfil, largo, corte)]);
@@ -410,7 +411,7 @@ function piezaInclinada(R, perfil, s, theta, planos, uso) {
 }
 
 /** Barras paralelas a θ dentro del tramo, con luz perpendicular 'luz', centradas en el tramo. */
-function familiaDiagonal(R, perfil, theta, luz, bay, uso) {
+function familiaDiagonal(R, perfil, theta, luz, bay, uso, recorte = null) {
   const [x0, y0, w, h] = bay;
   const th = rad(theta);
   const n = [-Math.sin(th), Math.cos(th)];
@@ -419,7 +420,8 @@ function familiaDiagonal(R, perfil, theta, luz, bay, uso) {
   const c = (smin + smax) / 2, paso = luz + perfil.a;
   const segs = [];
   for (let k = Math.floor((smin - c) / paso); k <= Math.ceil((smax - c) / paso); k++) {
-    const seg = piezaInclinada(R, perfil, c + k * paso, theta, planosRect(...bay), uso);
+    if (recorte && !piezaInclinada(R, perfil, c + k * paso, theta, planosRect(...bay), uso, true)) continue;
+    const seg = piezaInclinada(R, perfil, c + k * paso, theta, planosRect(...(recorte || bay)), uso);
     if (seg) segs.push(seg);
   }
   return segs;
@@ -480,6 +482,11 @@ function hoja(x0, y0, W, H, it, pm, pr, nombre, R, espejo = false, pt = null) {
   const ix = x0 + a, iy = y0 + a, n = it.n_trav;
   const relleno = it.relleno;
   const vertical = relleno !== "horizontales";
+  // Marco de ángulo (PWA, 25-nov, Max; pendiente en la PC): la cara ancha adelante y el ala atrás; travesaños, relleno
+  // y chapa van adentro de la L, apoyados detrás de la cara, hasta las alas: cada extremo que toca el marco se alarga
+  // e = a − t (el vano menos 2 espesores del ángulo). La distribución y lo que se ve de frente no cambian.
+  const e = pm.forma === "angulo" && pm.t > 0 && pm.t < a ? a - pm.t : 0;
+  const ampliar = ([x, y, w, h], [eL, eB, eR, eT]) => [x - eL, y - eB, w + eL + eR, h + eB + eT];
 
   // travesaños (perpendiculares a los barrotes; con chapa, horizontales), de cara interior a cara interior del marco
   const ejesTrav = [];
@@ -490,28 +497,31 @@ function hoja(x0, y0, W, H, it, pm, pr, nombre, R, espejo = false, pt = null) {
     if (tramo <= 0) throw new Error("Demasiados travesaños para esa altura");
     for (let k = 0; k < n; k++) {
       const y = iy + (k + 1) * tramo + k * at;
-      rect(R, "TRAVESANO", ix, y, iw, at, pt, iw);
-      ejesTrav.push([[ix, y + at / 2], [ix + iw, y + at / 2]]);
+      rect(R, "TRAVESANO", ix - e, y, iw + 2 * e, at, pt, iw + 2 * e);
+      ejesTrav.push([[ix - e, y + at / 2], [ix + iw + e, y + at / 2]]);
     }
-    if (n) R.piezas.push({ perfil: pt, largo: red(iw, 1), corte: RECTO, cant: n, uso: "travesaño" });
+    if (n) R.piezas.push({ perfil: pt, largo: red(iw + 2 * e, 1), corte: RECTO, cant: n, uso: "travesaño" });
     tramos = Array.from({ length: n + 1 }, (_, k) => [ix, iy + k * (tramo + at), iw, tramo]);
   } else {
     const tramo = (iw - n * at) / (n + 1);
     if (tramo <= 0) throw new Error("Demasiados montantes para ese ancho");
     for (let k = 0; k < n; k++) {
       const x = ix + (k + 1) * tramo + k * at;
-      rect(R, "TRAVESANO", x, iy, at, ih, pt, ih);
-      ejesTrav.push([[x + at / 2, iy], [x + at / 2, iy + ih]]);
+      rect(R, "TRAVESANO", x, iy - e, at, ih + 2 * e, pt, ih + 2 * e);
+      ejesTrav.push([[x + at / 2, iy - e], [x + at / 2, iy + ih + e]]);
     }
-    if (n) R.piezas.push({ perfil: pt, largo: red(ih, 1), corte: RECTO, cant: n, uso: "montante" });
+    if (n) R.piezas.push({ perfil: pt, largo: red(ih + 2 * e, 1), corte: RECTO, cant: n, uso: "montante" });
     tramos = Array.from({ length: n + 1 }, (_, k) => [ix + k * (tramo + at), iy, tramo, ih]);
   }
   if (n) R.juntas.push([pt, 2 * n]);
+  // lados del marco que toca cada tramo [izq., abajo, der., arriba] (los de los travesaños no se alargan)
+  const ladosTramo = (k) => (vertical ? [e, k === 0 ? e : 0, e, k === n ? e : 0] : [k === 0 ? e : 0, e, k === n ? e : 0, e]);
 
   if (relleno === "chapa") {
-    rect(R, "CHAPA", ix, iy, iw, ih);
-    R.chapas.push([iw, ih, it.esp_chapa]);
-    R.soldadura_extra_mm += 2 * (iw + ih) * 0.3;        // puntos / cordones intermitentes ≈ 30 % del contorno
+    const cw = iw + 2 * e, ch = ih + 2 * e;
+    rect(R, "CHAPA", ix - e, iy - e, cw, ch);
+    R.chapas.push([cw, ch, it.esp_chapa]);
+    R.soldadura_extra_mm += 2 * (cw + ch) * 0.3;        // puntos / cordones intermitentes ≈ 30 % del contorno
     return;
   }
 
@@ -519,11 +529,11 @@ function hoja(x0, y0, W, H, it, pm, pr, nombre, R, espejo = false, pt = null) {
   const luzMax = it.luz_max;
 
   if (relleno === "cruz") {                             // siempre por tramo: el armado no aplica
-    for (const [tx, ty, tw, th] of tramos) {
+    for (const [k, [tx, ty, tw, th]] of tramos.entries()) {
       const cx = tx + tw / 2, cy = ty + th / 2;
       const t1 = grados(Math.atan2(th, tw));
       const t2 = 180 - t1;
-      const pl = planosRect(tx, ty, tw, th);
+      const pl = planosRect(...ampliar([tx, ty, tw, th], ladosTramo(k)));
       const r1 = rad(t1);
       const n1 = [-Math.sin(r1), Math.cos(r1)];
       const s1 = n1[0] * cx + n1[1] * cy;
@@ -540,67 +550,71 @@ function hoja(x0, y0, W, H, it, pm, pr, nombre, R, espejo = false, pt = null) {
   // a tope → el relleno se corta en cada tramo; pasantes → entero de marco a marco, travesaños superpuestos
   const pasantes = it.armado === "pasantes" && n > 0;
   const zonas = pasantes ? [[ix, iy, iw, ih]] : tramos;
+  const lados = pasantes ? [[e, e, e, e]] : tramos.map((_, k) => ladosTramo(k));
   let ejes = [];
 
   if (relleno === "diagonales") {
     const theta = espejo ? 180 - it.angulo : it.angulo;
-    for (const bay of zonas) {
-      const s = familiaDiagonal(R, pr, theta, luzMax, bay, "diagonal");
+    for (const [k, bay] of zonas.entries()) {
+      const s = familiaDiagonal(R, pr, theta, luzMax, bay, "diagonal", e ? ampliar(bay, lados[k]) : null);
       ejes = ejes.concat(s);
       if (s.length) R.luces.push(luzMax);
     }
   } else if (relleno === "rombos") {
-    for (const bay of zonas) {
-      const s1 = familiaDiagonal(R, pr, it.angulo, luzMax, bay, "rombo");
-      const s2 = familiaDiagonal(R, pr, 180 - it.angulo, luzMax, bay, "rombo");
+    for (const [k, bay] of zonas.entries()) {
+      const rec = e ? ampliar(bay, lados[k]) : null;
+      const s1 = familiaDiagonal(R, pr, it.angulo, luzMax, bay, "rombo", rec);
+      const s2 = familiaDiagonal(R, pr, 180 - it.angulo, luzMax, bay, "rombo", rec);
       R.soldadura_extra_mm += cruces(s1, s2) * punto;
       ejes = ejes.concat(s1, s2);
       if (s1.length || s2.length) R.luces.push(luzMax);
     }
   } else if (relleno === "cuadricula") {
-    for (const [tx, ty, tw, th] of zonas) {
+    for (const [k, [tx, ty, tw, th]] of zonas.entries()) {
+      const [eL, eB, eR, eT] = lados[k];
       const [nv, luzv] = distribuir(tw, pr.a, luzMax);
       const [nh, luzh] = distribuir(th, pr.a, luzMax);
       for (let i = 0; i < nv; i++) {
         const x = tx + luzv + i * (pr.a + luzv);
-        rect(R, "BARRA", x, ty, pr.a, th, pr, th);
-        ejes.push([[x + pr.a / 2, ty], [x + pr.a / 2, ty + th]]);
+        rect(R, "BARRA", x, ty - eB, pr.a, th + eB + eT, pr, th + eB + eT);
+        ejes.push([[x + pr.a / 2, ty - eB], [x + pr.a / 2, ty + th + eT]]);
       }
       for (let j = 0; j < nh; j++) {
         const y = ty + luzh + j * (pr.a + luzh);
-        rect(R, "BARRA", tx, y, tw, pr.a, pr, tw);
-        ejes.push([[tx, y + pr.a / 2], [tx + tw, y + pr.a / 2]]);
+        rect(R, "BARRA", tx - eL, y, tw + eL + eR, pr.a, pr, tw + eL + eR);
+        ejes.push([[tx - eL, y + pr.a / 2], [tx + tw + eR, y + pr.a / 2]]);
       }
       if (nv) {
-        R.piezas.push({ perfil: pr, largo: red(th, 1), corte: RECTO, cant: nv, uso: "cuadrícula vertical" });
+        R.piezas.push({ perfil: pr, largo: red(th + eB + eT, 1), corte: RECTO, cant: nv, uso: "cuadrícula vertical" });
         R.juntas.push([pr, 2 * nv]);
       }
       if (nh) {
-        R.piezas.push({ perfil: pr, largo: red(tw, 1), corte: RECTO, cant: nh, uso: "cuadrícula horizontal" });
+        R.piezas.push({ perfil: pr, largo: red(tw + eL + eR, 1), corte: RECTO, cant: nh, uso: "cuadrícula horizontal" });
         R.juntas.push([pr, 2 * nh]);
       }
       R.soldadura_extra_mm += nv * nh * punto;
       R.luces.push(luzv, luzh);
     }
   } else {                                              // barrotes verticales u horizontales
-    for (const [tx, ty, tw, th] of zonas) {
+    for (const [k, [tx, ty, tw, th]] of zonas.entries()) {
+      const [eL, eB, eR, eT] = lados[k];
       let nb, luz, largo;
       if (vertical) {
         [nb, luz] = distribuir(tw, pr.a, luzMax);
+        largo = th + eB + eT;
         for (let i = 0; i < nb; i++) {
           const x = tx + luz + i * (pr.a + luz);
-          rect(R, "BARRA", x, ty, pr.a, th, pr, th);
-          ejes.push([[x + pr.a / 2, ty], [x + pr.a / 2, ty + th]]);
+          rect(R, "BARRA", x, ty - eB, pr.a, largo, pr, largo);
+          ejes.push([[x + pr.a / 2, ty - eB], [x + pr.a / 2, ty + th + eT]]);
         }
-        largo = th;
       } else {
         [nb, luz] = distribuir(th, pr.a, luzMax);
+        largo = tw + eL + eR;
         for (let i = 0; i < nb; i++) {
           const y = ty + luz + i * (pr.a + luz);
-          rect(R, "BARRA", tx, y, tw, pr.a, pr, tw);
-          ejes.push([[tx, y + pr.a / 2], [tx + tw, y + pr.a / 2]]);
+          rect(R, "BARRA", tx - eL, y, largo, pr.a, pr, largo);
+          ejes.push([[tx - eL, y + pr.a / 2], [tx + tw + eR, y + pr.a / 2]]);
         }
-        largo = tw;
       }
       if (nb) {
         R.piezas.push({ perfil: pr, largo: red(largo, 1), corte: RECTO, cant: nb, uso: pasantes ? "barrote pasante" : "barrote" });
