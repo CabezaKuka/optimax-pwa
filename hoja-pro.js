@@ -7,7 +7,7 @@ const WHATSAPP = "59177626675";
 const PRECIO = "25 USD";
 
 const MOTIVOS = {
-  imprimir: "Imprimir la plantilla a escala, para trazar sobre la chapa, es de la versión PRO.",
+  imprimir: "El PDF de la pieza (plano con medidas y plantilla a escala para trazar) es de la versión PRO.",
   pdf: "Guardar la lista de corte en PDF es de la versión PRO.",
   figura: "Esta figura es de la versión PRO.",
   barras: "Calcular listas de más de 5 piezas, con el optimizador completo, es de la versión PRO.",

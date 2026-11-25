@@ -59,7 +59,7 @@ function listo(si) {
 /**
  * Abre la hoja. o: {titulo, archivo (nombre del PDF), opciones: [[valor, texto]] (opcional), inicial,
  * describir(opción) → texto (cuántas páginas…; puede lanzar un error), armar(opción) → {bytes, paginas},
- * nota (cómo imprimir)}.
+ * nota (cómo imprimir)}. archivo y nota pueden ser funciones de la opción elegida.
  */
 export function abrirSalida(o) {
   armarHoja();
@@ -68,7 +68,6 @@ export function abrirSalida(o) {
   $("#s-op").innerHTML = (o.opciones || []).map(([v, t]) =>
     `<label class="s-op"><input type="radio" name="s-op" value="${v}"${v === (o.inicial ?? o.opciones[0][0]) ? " checked" : ""}><span>${t}</span></label>`).join("");
   $("#s-op").hidden = !o.opciones?.length;
-  $("#s-nota").textContent = o.nota ?? "Para imprimir: al 100 % («Tamaño real»), sin «Ajustar a la página».";
   listo(false);
   describir();
   if (typeof d.showModal === "function") d.showModal(); else d.setAttribute("open", "");
@@ -81,8 +80,11 @@ async function armar() {
   $("#s-error").hidden = true;
   try {
     await new Promise((r) => setTimeout(r, 30));          // que se vea «Armando…» antes de trabajar
-    const r = await actual.armar(opcion());
-    ultimo = new File([r.bytes], actual.archivo, { type: "application/pdf" });
+    const op = opcion();
+    const segun = (v) => (typeof v === "function" ? v(op) : v);
+    const r = await actual.armar(op);
+    ultimo = new File([r.bytes], segun(actual.archivo), { type: "application/pdf" });
+    $("#s-nota").textContent = segun(actual.nota) ?? "Para imprimir: al 100 % («Tamaño real»), sin «Ajustar a la página».";
     const kb = r.bytes.length / 1024;
     $("#s-info").textContent = `· ${r.paginas} ${r.paginas === 1 ? "página" : "páginas"} · ${kb < 1024 ? `${Math.max(1, Math.round(kb))} KB` : `${(kb / 1024).toFixed(1).replace(".", ",")} MB`}`;
     d.dataset.paginas = r.paginas;

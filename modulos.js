@@ -1,5 +1,6 @@
 // Módulos de la PWA, agrupados por oficio (pantalla de inicio). Cada uno tiene su dirección (#id) para que un
 // anuncio entre directo. disponible = false: se muestra en el inicio como «Próximamente» y no se abre.
+// oculto = true: no aparece en el inicio (Escaleras, hasta validarla en el taller).
 export const OFICIOS = ["Chapa", "Herrería", "Carpintería"];
 
 export const MODULOS = [
@@ -16,7 +17,7 @@ export const MODULOS = [
     cargar: () => import("./modulos/portones.js"),
   },
   {
-    id: "escaleras", oficio: "Herrería", icono: "escaleras", disponible: false,
+    id: "escaleras", oficio: "Herrería", icono: "escaleras", disponible: false, oculto: true,
     nombre: "Escaleras",
     descripcion: "Largueros, peldaños y baranda, con su lista de corte.",
   },

@@ -119,13 +119,20 @@ const PLANTILLA = `
 <div class="app app-barras app-portones">
   <section class="b-datos" aria-label="Datos de la reja o el portón">
     <h1 class="titulo-figura">Rejas y portones</h1>
+    <div class="grupo">
     <h2 class="sub">Tipo</h2>
     <div class="p-tarjetas p-tipos" id="p-tipos"></div>
     ${paso("cantidad", "Cantidad iguales")}
+    </div>
+    <div class="grupo">
     <h2 class="sub">Medidas</h2>
     ${campo("ancho")}${campo("alto")}
+    </div>
+    <div class="grupo">
     <h2 class="sub">Perfiles <button type="button" class="btn-sec btn-chico" id="p-admin">Editar perfiles</button></h2>
     ${perfilSel("perfil_marco", "Marco")}${perfilSel("perfil_trav", "Travesaños")}${perfilSel("perfil_relleno", "Relleno")}
+    </div>
+    <div class="grupo">
     <h2 class="sub">Relleno</h2>
     <div class="p-tarjetas p-rellenos" id="p-rellenos"></div>
     ${campo("luz_max")}${campo("angulo")}${paso("n_trav", "Travesaños")}
@@ -135,6 +142,7 @@ const PLANTILLA = `
         <label><input type="radio" name="p-armado" value="pasantes"><span>Pasantes</span></label>
       </div></div>
     ${campo("esp_chapa")}
+    </div>
     <details class="p-plegable" id="p-holguras"><summary>Holguras del portón</summary>
       ${campo("holg_lat")}${campo("holg_centro")}${campo("luz_piso")}${campo("solape")}</details>
     <details class="p-plegable"><summary>Corte y costos del taller</summary>

@@ -25,18 +25,21 @@ export function montar(cont) {
       <section class="oficio of-${slug(of)}" aria-labelledby="of-${slug(of)}">
         <h2 id="of-${slug(of)}">${of}</h2>
         <ul class="mods">
-          ${MODULOS.filter((m) => m.oficio === of).map((m) => m.disponible
-            ? `<li><a class="mod" href="#${m.id}">${tarjeta(m, "Abrir", "abrir")}</a></li>`
+          ${MODULOS.filter((m) => m.oficio === of && !m.oculto).map((m) => m.disponible
+            ? `<li><a class="mod" href="#${m.id}">${tarjeta(m)}${FLECHA}</a></li>`
             : `<li><div class="mod mod-off" aria-disabled="true">${tarjeta(m, "Próximamente")}</div></li>`).join("")}
         </ul>
       </section>`).join("")}
   </div>`;
 }
 
-function tarjeta(m, estado, clase = "pronto") {
+// toda la tarjeta abre el módulo; la flecha solo indica que se puede tocar
+const FLECHA = `<svg class="mod-ir" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+
+function tarjeta(m, estado = "") {
   return `<span class="mod-ico">${icono(m.icono)}</span>
     <span class="mod-txt"><span class="mod-nom">${m.nombre}</span><span class="mod-desc">${m.descripcion}</span>` +
-    `<span class="${clase}">${estado}</span></span>`;
+    (estado ? `<span class="pronto">${estado}</span>` : "") + `</span>`;
 }
 
 export function desmontar() {}

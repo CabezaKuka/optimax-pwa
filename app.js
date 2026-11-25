@@ -10,6 +10,13 @@ const pantalla = $("#pantalla");
 let actual = null;              // { id, mod }
 let turno = 0;                  // descarta montajes viejos si se cambia de ruta mientras carga
 
+// color del oficio del módulo abierto (app.css: .of-chapa, .of-herreria, .of-carpinteria), también en sus hojas
+const slug = (t) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+function ponerOficio(m) {
+  document.body.classList.remove(...[...document.body.classList].filter((c) => c.startsWith("of-")));
+  if (m) document.body.classList.add(`of-${slug(m.oficio)}`);
+}
+
 async function ir() {
   const id = decodeURIComponent(location.hash.slice(1));
   const m = moduloPorId(id);
@@ -28,10 +35,12 @@ async function ir() {
     actual = { id: "inicio", mod: inicio };
     document.title = "optiMAX · Herramientas para el taller";
     $("#migas").hidden = true;
+    ponerOficio(null);
     inicio.montar(pantalla);
     return;
   }
   $("#migas").hidden = false;
+  ponerOficio(m);
   $("#migas-mod").textContent = m.nombre;
   document.title = `optiMAX · ${m.nombre}`;
   const mod = await m.cargar();

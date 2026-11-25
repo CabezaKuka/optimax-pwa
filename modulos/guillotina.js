@@ -72,13 +72,20 @@ const PLANTILLA = `
 <div class="app app-barras">
   <section class="b-datos" aria-label="Plancha y piezas">
     <h1 class="titulo-figura">Guillotina y melamina</h1>
+    <div class="grupo">
+    <h2 class="sub">Plancha</h2>
     ${campoMm("largo", "Largo de la plancha")}
     ${campoMm("ancho", "Ancho de la plancha")}
-    ${campoMm("corte", "Ancho del corte")}
     ${campoMm("refilado", "Refilado de los bordes")}
+    </div>
+    <div class="grupo">
+    <h2 class="sub">Corte</h2>
+    ${campoMm("corte", "Ancho del corte")}
     ${campoMm("max", "Largo máximo de corte (0 = sin límite)")}
     <label class="tilde"><input type="checkbox" id="g-rotar"> Las piezas se pueden girar (sin veta)</label>
+    </div>
 
+    <div class="grupo">
     <h2 class="sub">Piezas a cortar</h2>
     <div class="fila-tit fila-tit-g" aria-hidden="true"><span>Alto</span><span>Largo</span><span>Cantidad</span></div>
     <ul class="piezas" id="piezas"></ul>
@@ -86,6 +93,7 @@ const PLANTILLA = `
       <button type="button" class="btn-sec" id="g-agregar">Agregar pieza</button>
       <button type="button" class="btn-sec" id="g-pegar">Pegar lista</button>
       <button type="button" class="btn-sec btn-quieto" id="g-vaciar">Vaciar</button>
+    </div>
     </div>
   </section>
 
@@ -97,7 +105,7 @@ const PLANTILLA = `
       <div class="resumen" id="g-resumen"></div>
       <p class="nota" id="g-avisos" hidden></p>
       <div id="g-planchas"></div>
-      <div class="precio">
+      <div class="precio grupo">
         <h2 class="sub">Precio por pieza <span class="tag">PRO</span></h2>
         <div class="campo"><label class="rotulo" for="g-precio">Precio de una plancha</label>
           <span class="entrada"><input id="g-precio" type="text" inputmode="decimal" spellcheck="false" placeholder="0"></span></div>
