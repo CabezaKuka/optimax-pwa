@@ -5,12 +5,14 @@
 //
 // Acá va el cálculo rápido (First Fit Decreasing). El optimizador completo del escritorio (búsqueda exacta + juntar
 // el sobrante en un retazo) y el precio por pieza son PRO: repo privado, barras/optimizar.js.
+import { fijo } from "../geo/base.js";
+
 export const EPS = 1e-6;
 
 // ------------------------------------------------------------------ números
 /** idioma.miles(v, dec, recortar) en español: «1.234,5», «6.000». */
 export function miles(v, dec = 0, recortar = false) {
-  let t = Number(v).toFixed(dec);
+  let t = fijo(v, dec);                                  // como Python: al par en los empates exactos
   let [ent, frac] = t.split(".");
   const neg = ent.startsWith("-");
   if (neg) ent = ent.slice(1);

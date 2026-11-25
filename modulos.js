@@ -10,9 +10,10 @@ export const MODULOS = [
     cargar: () => import("./modulos/chapa.js"),
   },
   {
-    id: "portones", oficio: "Herrería", icono: "portones", disponible: false,
+    id: "portones", oficio: "Herrería", icono: "portones", disponible: true,
     nombre: "Rejas y portones",
-    descripcion: "Lista de corte de cada perfil, barras a comprar y croquis.",
+    descripcion: "Lista de corte de cada perfil con sus ángulos, barras a comprar, peso y croquis.",
+    cargar: () => import("./modulos/portones.js"),
   },
   {
     id: "escaleras", oficio: "Herrería", icono: "escaleras", disponible: false,

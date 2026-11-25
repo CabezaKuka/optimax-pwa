@@ -415,6 +415,94 @@ body.sin-scroll { overflow: hidden; }
 .g-cortes ol { margin: 4px 0 0; padding-left: 0; list-style: none; }
 .g-cortes li { padding: 4px 0; border-bottom: 1px solid var(--linea); }
 
+/* ------------------------------------------------------------ Rejas y portones */
+.btn-chico { min-height: 34px; padding: 0 10px; font-size: 14px; }
+.sub .btn-chico { margin-left: auto; }
+.p-tarjetas { display: grid; gap: 6px; margin-bottom: 4px; }
+.p-tipos { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.p-rellenos { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.p-tarjeta {
+  display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 4px 5px;
+  border: 2px solid transparent; border-radius: 8px; background: var(--hoja); box-shadow: 0 0 0 1px var(--linea);
+  font-size: 13px; line-height: 1.15; text-align: center;
+}
+.p-tarjeta.elegida { border-color: var(--tinta); box-shadow: none; font-weight: 600; }
+.p-mini { display: grid; place-items: center; width: 100%; height: 60px; }
+.p-mini svg { max-width: 100%; max-height: 60px; width: auto; height: auto; }
+.p-tnom .tag { font-size: 10px; padding: 0 3px; vertical-align: 1px; }
+.campo-perfil { grid-template-columns: 96px minmax(0, 1fr); }
+.p-select {
+  width: 100%; min-width: 0; height: 44px; padding: 0 8px; border: 1px solid #c3cbd4; border-radius: 6px;
+  background: var(--hoja); font: 500 16px "Barlow", sans-serif;
+}
+.p-plegable { margin-top: 16px; border-top: 1px solid var(--linea); }
+.p-plegable summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; font-weight: 700; font-size: 16px; }
+.precio.bloq .nota { display: none; }
+.p-elev { margin: 14px 0 0; background: var(--hoja); border-radius: 8px; padding: 8px 8px 4px; box-shadow: 0 0 0 1px var(--linea); }
+.p-elev-cab { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.p-luz { flex: 1 1 auto; font: 600 15px var(--num); }
+.tilde-chica { padding: 4px 0; }
+.p-dibujo { display: flex; justify-content: center; overflow: hidden; touch-action: pan-y; }
+.p-dibujo svg, .p-completa-dib svg { display: block; flex: none; }
+.p-dibujo [data-m], .p-completa-dib [data-m] { cursor: pointer; }
+.p-letra { font-family: var(--num); font-weight: 700; text-anchor: middle; dominant-baseline: central; fill: #1d2833; }
+.p-cota { font-family: var(--num); font-weight: 600; fill: #1f7a4d; dominant-baseline: central; }
+.p-vano { font-family: var(--num); font-weight: 500; fill: var(--gris); text-anchor: middle; dominant-baseline: central; }
+.p-elev figcaption { margin: 2px 0 0; }
+.p-aviso { color: var(--rojo-osc); }
+.p-lista { list-style: none; margin: 0; padding: 0; }
+.p-lista li {
+  display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; column-gap: 10px; row-gap: 1px; align-items: center;
+  padding: 8px 6px; border-bottom: 1px solid var(--linea); cursor: pointer; border-radius: 4px;
+}
+.p-lista li.sel { background: #fff3c4; }
+.p-chip {
+  grid-row: 1 / span 3; width: 34px; height: 30px; border-radius: 4px; display: grid; place-items: center;
+  font: 700 15px var(--num); color: #111; box-shadow: inset 0 0 0 1px rgb(0 0 0 / .3);
+}
+.p-largo { font: 600 19px var(--num); }
+.p-largo small { font-size: 13px; color: var(--gris); }
+.p-cant { font: 600 18px var(--num); justify-self: end; }
+.p-det { grid-column: 2; font-size: 14px; color: var(--tinta); }
+.p-croquis { grid-column: 3; grid-row: 2; justify-self: end; }
+.p-croquis polygon { fill: #dfe4ea; stroke: var(--tinta); stroke-width: .8; }
+.p-uso { grid-column: 2 / span 2; font-size: 13px; color: var(--gris); }
+.p-grupo { margin-bottom: 14px; }
+.p-perfil { margin: 0 0 6px; font-size: 16px; display: flex; flex-wrap: wrap; column-gap: 8px; }
+.p-perfil span { font-weight: 400; color: var(--gris); font-size: 14px; }
+.p-grupo .seg { color: #111; cursor: pointer; }
+.p-grupo .barras-dib, .p-grupo .barra-fila + .barra-fila { margin-top: 6px; }
+.p-datos { margin-top: 10px; font-size: 15px; }
+.p-datos p { margin: 4px 0; }
+.p-completa { position: fixed; inset: 0; z-index: 40; background: #fff; display: flex; flex-direction: column; }
+.p-completa-barra {
+  display: flex; align-items: center; gap: 8px; padding: calc(8px + env(safe-area-inset-top)) 10px 8px;
+  border-bottom: 1px solid var(--linea); background: var(--papel);
+}
+.p-completa-barra button { min-width: 44px; height: 44px; border: 1px solid #c3cbd4; border-radius: 6px; background: var(--hoja); font-size: 20px; }
+.p-completa-barra .p-c-cerrar { margin-left: auto; padding: 0 14px; font-size: 16px; font-weight: 600; }
+.p-completa-dib { flex: 1; overflow: auto; display: flex; -webkit-overflow-scrolling: touch; }
+.p-completa-dib svg { margin: auto; }
+.perfiles { list-style: none; margin: 0 0 10px; padding: 0; }
+.perfil-ed {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 40px; gap: 6px; align-items: center;
+  padding: 10px 0; border-bottom: 1px solid var(--linea);
+}
+.perfil-ed .pe-nombre { grid-column: 1 / span 2; }
+.perfil-ed .pe-nombre input { text-align: left; font: 600 16px "Barlow", sans-serif; }
+.perfil-ed select { height: 44px; min-width: 0; border: 1px solid #c3cbd4; border-radius: 6px; background: var(--hoja); font: 500 15px "Barlow", sans-serif; padding: 0 6px; }
+.perfil-ed .entrada input { font-size: 16px; }
+.perfil-ed > .entrada:not(.pe-nombre) { grid-column: 2 / span 2; }
+.pe-num { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 6px; font-size: 14px; color: var(--gris); }
+.pe-num:last-of-type { grid-column: 2 / span 2; }
+.pe-bloq { opacity: .45; }
+.pe-estado { grid-column: 1 / -1; font-size: 13px; color: var(--gris); }
+.perfil-mal { color: var(--rojo-osc); font-weight: 600; }
+.entrada.mal { border-color: var(--rojo); }
+.hoja-perfiles .btn-prim { margin-top: 14px; }
+@media (min-width: 600px) { .hoja-pro.hoja-perfiles { width: 560px; } }
+@media (max-width: 380px) { .p-tipos, .p-rellenos { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
 /* ------------------------------------------------------------ pie */
 .pie {
   display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px;

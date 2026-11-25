@@ -33,12 +33,19 @@ export function esPro() {
  * no se pudo cargar.
  */
 export async function cargarPro(ruta) {
-  if (!esPro()) return null;
+  const url = urlPro(ruta);
+  if (!url) return null;
   try {
-    if (DESARROLLO) return await import(new URL(`./pro/${ruta}`, import.meta.url).href);
-    return null;         // fase de licencias: código entregado por el servidor y guardado en el dispositivo
+    return await import(url);
   } catch (e) {
     console.warn(`No se pudo cargar el código PRO «${ruta}»:`, e);
     return null;
   }
+}
+
+/** Dirección del código PRO (para cargarlo en un Worker), o null si no hay PRO. */
+export function urlPro(ruta) {
+  if (!esPro()) return null;
+  if (DESARROLLO) return new URL(`./pro/${ruta}`, import.meta.url).href;
+  return null;           // fase de licencias: código entregado por el servidor y guardado en el dispositivo
 }

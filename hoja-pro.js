@@ -8,7 +8,8 @@ const MOTIVOS = {
   figura: "Esta figura es de la versión PRO.",
   barras: "Calcular listas de más de 5 piezas, con el optimizador completo, es de la versión PRO.",
   guillotina: "Calcular listas de más de 5 piezas, con la búsqueda completa, es de la versión PRO.",
-  precio: "El precio de cada pieza es de la versión PRO.",
+  portones: "Los portones (batiente y corredizo), las rejas de más de 1500 × 1000 mm y el optimizador completo de barras son de la versión PRO.",
+  precio: "Los precios y costos son de la versión PRO.",
   "": "Imprimir a escala y guardar las listas de corte en PDF son de la versión PRO.",
 };
 

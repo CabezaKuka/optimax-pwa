@@ -18,6 +18,9 @@ modulos/barras.js             módulo Barras y tubos (piezas, pegar lista, barra
 barras/motor.js               corte de barras de la DEMO (lectura de listas, cálculo rápido); el completo es PRO
 modulos/guillotina.js         módulo Guillotina (tablero, piezas, planchas dibujadas con los cortes numerados, orden de corte)
 guillotina/motor.js           cortes de guillotina de la DEMO (144 combinaciones fijas); la búsqueda completa es PRO
+modulos/portones.js           módulo Rejas y portones (tipo, medidas, perfiles, relleno, elevación con marcas y cotas, lista de corte, barras)
+portones/motor.js             elevación, piezas con su corte, marcas, barras, peso y cotas (portones.py); los portones y los costos son PRO
+barras/trabajador.js          Worker del optimizador completo de barras (PRO), para no trabar la pantalla
 licencia.js                   esPro() y cargarPro(): la licencia se conecta al final (Railway)
 hoja-pro.js, iconos.js        hoja de compra; íconos de los módulos
 vista.js                      dibujo de la plancha (SVG), cotas, zoom y desplazamiento
@@ -31,11 +34,14 @@ manifest.webmanifest, img/, fuentes/ (Barlow, SIL OFL 1.1)
 tools/volcar_casos.py         casos de referencia desde el programa de escritorio → tests/casos.json
 tools/imagenes_figuras.py     imágenes del catálogo con el motor del escritorio → img/fig/
 tests/comparar.mjs            compara la geometría JS contra tests/casos.json
+tools/volcar_portones.py      casos de Rejas y portones desde el escritorio → tests/casos_portones.json (--todos: los del PRO)
+tests/portones.mjs            compara el motor de portones (reja de ventana) contra tests/casos_portones.json
 ```
 
 ## Probar
 ```
 node tests/comparar.mjs                                  # geometría contra el escritorio: 49 de 49 OK
+node tests/portones.mjs                                  # rejas contra el escritorio: 175 de 175 OK
 python tests/navegador.py                                # recorridos en Chrome (celular y PC)
 python -m http.server 8000                               # y abrir http://localhost:8000
 ```
