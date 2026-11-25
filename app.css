@@ -671,3 +671,8 @@ body.sin-scroll { overflow: hidden; }
     display: block; padding: 40px; font: 600 18px "Barlow", sans-serif;
   }
 }
+
+/* guillotina: material a todo el ancho (el nombre de la plancha es largo) */
+.campo-ancho { grid-template-columns: minmax(0, 1fr); row-gap: 6px; }
+.campo-ancho .p-select { width: 100%; }
+.g-pl-res { margin: 0 0 4px; }
