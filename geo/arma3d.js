@@ -28,10 +28,11 @@ export function conMapa(gens, f) {
 }
 
 /**
- * Malla de una pieza 3D: { pos: [x, y, z, …], idx: [i, j, k, …], bordes: [[P, Q], …] }. Cada generatriz se parte
- * en tramos de a lo sumo 'paso' mm (las generatrices son rectas en la chapa y en el 3D: el punto del medio es exacto).
+ * Malla de una pieza 3D: { pos: [x, y, z, …], idx: [i, j, k, …], bordes: [[P, Q], …] }. Las generatrices son rectas en
+ * la chapa y en el 3D: con un tramo por generatriz la superficie ya es la misma (~2 triángulos por generatriz). Con
+ * 'paso' (mm) se parten en tramos de a lo sumo ese largo (no hace falta para verla).
  */
-export function malla(pieza, paso) {
+export function malla(pieza, paso = Infinity) {
   const pos = [], idx = [], bordes = [];
   for (const banda of pieza.bandas) {
     if (banda.length < 2) continue;

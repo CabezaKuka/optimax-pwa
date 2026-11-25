@@ -12,13 +12,12 @@ const REF = "#f3d19c", BORDE_REF = "#b7791f";
 export async function abrir3DChapa(fig, v, t) {
   const piezas = fig.armado3D(v, t);
   const tam = tamano(piezas) || 100;
-  const paso = tam / 90;                                   // largo máximo de cada tramo de la malla
   await abrirVisor({ zArriba: true, margen: tam * 0.04, fondo: "#eef2f8", armar: (T, grupo, basura) => {
     const lineas = new T.LineBasicMaterial({ color: BORDE }), lineasRef = new T.LineBasicMaterial({ color: BORDE_REF });
     basura.push(lineas, lineasRef);
     let n = 0, tri = 0;
     for (const p of piezas) {
-      const { pos, idx, bordes } = malla(p, paso);
+      const { pos, idx, bordes } = malla(p);
       if (!idx.length) continue;
       const ref = p.tono === "ref";
       const geo = new T.BufferGeometry();

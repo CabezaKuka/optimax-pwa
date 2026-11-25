@@ -3,7 +3,7 @@
 // la chapa no se estira, las bandas cubren la plantilla entera, la costura cierra, el borde cae donde tiene que caer.
 //   node tests/chapa3d.mjs        (con pro/ enlazado: node --preserve-symlinks --preserve-symlinks-main …)
 import { FIGURAS, valoresDefecto, leer } from "../geo/index.js";
-import { areaBanda, areaPieza, estiramiento, malla, tamano, dist3 } from "../geo/arma3d.js";
+import { areaBanda, areaPieza, estiramiento, malla, dist3 } from "../geo/arma3d.js";
 
 let bien = 0, mal = 0;
 const ok = (que, cond, extra = "") => { if (cond) bien++; else { mal++; console.log(`MAL ${que} ${extra}`); } };
@@ -27,14 +27,13 @@ function comun(g, extra, t = 2) {
   const a2 = planas.flatMap((p) => Array(p.cantidad).fill(areaPieza(p))).sort((x, y) => x - y);
   const dif = Math.max(...a3.map((a, i) => Math.abs(a - a2[i]) / a2[i]));
   ok(`${nom}: misma superficie que la plantilla`, dif < 3e-3, `${(dif * 100).toFixed(3)} %`);
-  const tam = tamano(arm);
   let tris = 0, sano = true;
   for (const p of arm) {
-    const m = malla(p, tam / 90);
+    const m = malla(p);
     tris += m.idx.length / 3;
     if (m.pos.some((x) => !Number.isFinite(x)) || m.idx.some((i) => i < 0 || i >= m.pos.length / 3)) sano = false;
   }
-  ok(`${nom}: malla sana (${tris} triángulos)`, sano && tris > 0 && tris < 400000, `${tris}`);
+  ok(`${nom}: malla sana (${tris} triángulos)`, sano && tris > 0 && tris < 20000, `${tris}`);
   return { v, arm, corte, planas };
 }
 const costura = (b) => Math.max(dist3(b[0][2], b[b.length - 1][2]), dist3(b[0][3], b[b.length - 1][3]));
@@ -137,6 +136,12 @@ const maxDif = (b, f) => Math.max(...b.map(f));
   }
 }
 
+// el paso parte las generatrices sin cambiar la superficie (los puntos nuevos quedan sobre la misma recta)
+{
+  const g = fig("t_cil_cil"), v = leer(g, valoresDefecto(g)), p = g.armado3D(v, 2)[0];
+  const m1 = malla(p), m2 = malla(p, 20);
+  ok("malla con paso: más triángulos, mismos bordes de las puntas", m2.idx.length > m1.idx.length && m2.bordes.length === m1.bordes.length);
+}
 ok("las 4 figuras DEMO tienen su 3D", FIGURAS.every((g) => typeof g.armado3D === "function"));
 console.log(`${bien} de ${bien + mal} OK`);
 process.exit(mal ? 1 : 0);
