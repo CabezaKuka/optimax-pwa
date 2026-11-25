@@ -37,6 +37,7 @@ export const ITEM_DEF = {
   perfil_marco: "", perfil_relleno: "", perfil_trav: "",            // perfil_trav "" = el del marco
   relleno: "verticales", luz_max: 100.0, angulo: 45.0, n_trav: 1, armado: "a_tope", holg_lat: 10.0, holg_centro: 10.0,
   luz_piso: 30.0, solape: 100.0, esp_chapa: 1.5,
+  trav_lado: "adelante",            // solo PWA (pasantes): el travesaño adelante o atrás de los barrotes (3D y dibujo)
 };
 const ENTEROS = new Set(["cantidad", "n_trav"]);
 export const MAX_TRAV = 10;

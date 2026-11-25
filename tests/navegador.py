@@ -8,6 +8,7 @@ Levanta un servidor local en la raíz del repo. Si existe pro/ (el repo privado)
 desarrollo (?pro=1). Requiere: pip install playwright (usa el Chrome instalado; --chrome para otro).
 """
 import argparse
+import json
 import os
 import subprocess
 import sys
@@ -345,6 +346,57 @@ def portones_demo(pg, base, cap):
     pg.click(".p-c-cerrar")
     control(pg.locator(".p-completa").count() == 0, "portones: cerrar la pantalla completa")
     ver_3d(pg, "portones DEMO", cap, "c_portones_3d")
+    # pasantes: travesaño adelante / atrás (ejemplo de Max: marco ángulo 40×40×3, travesaños y barrotes 20×20)
+    pg.click(".p-tarjeta[data-v=verticales]")
+    pg.select_option("#p-perfil_marco", "Ángulo 40×40×3")
+    pg.select_option("#p-perfil_trav", "Tubo cuadrado 20×20×1,5")
+    pg.select_option("#p-perfil_relleno", "Tubo cuadrado 20×20×1,5")
+    control(pg.is_hidden(".campo[data-k=trav_lado]"), "pasantes: «Travesaños adelante / atrás» oculto a tope")
+    pg.check("input[name=p-armado][value=pasantes]")
+    pg.wait_for_timeout(600)
+    control(pg.is_visible(".campo[data-k=trav_lado]") and pg.is_checked("input[name=p-trav_lado][value=adelante]"), "pasantes: travesaño adelante por defecto")
+    def planos3d():
+        pg.click("#p-3d")
+        pg.wait_for_selector(".p-3d[data-planos]", timeout=15000)
+        pl = json.loads(pg.get_attribute(".p-3d", "data-planos"))
+        av = pg.is_visible(".p-3d-aviso")
+        cu, pz = int(pg.get_attribute(".p-3d", "data-cuerpos")), int(pg.get_attribute(".p-3d", "data-piezas"))
+        return pl, av, cu, pz
+    pl, av, cu, pz = planos3d()
+    if cap:
+        pg.wait_for_timeout(500)
+        pg.screenshot(path=f"{cap}/c_pasantes_adelante_3d.png")
+        pg.mouse.move(100, 500)
+        pg.mouse.down()
+        pg.mouse.move(330, 470, steps=12)                   # gira para verlo desde atrás (ala del ángulo)
+        pg.mouse.up()
+        pg.wait_for_timeout(800)
+        pg.screenshot(path=f"{cap}/c_pasantes_atras_vista_3d.png")
+    pg.click(".p-3d .p-c-cerrar")
+    cerca = lambda a, b: abs(a - b) < 0.01
+    control(cerca(pl["MARCO"][1], 20) and cerca(pl["TRAVESANO"][1], 20) and cerca(pl["TRAVESANO"][0], 0)
+            and cerca(pl["BARRA"][1], 0) and cerca(pl["BARRA"][0], -20) and not av, f"3D pasantes: travesaño al ras adelante, barrotes detrás ({pl})")
+    control(cu == pz + 4, f"3D: el marco de ángulo con su ala ({cu} cuerpos, {pz} piezas)")
+    pg.check("input[name=p-trav_lado][value=atras]")
+    pg.wait_for_timeout(400)
+    pl, av, cu, pz = planos3d()
+    if cap:
+        pg.wait_for_timeout(500)
+        pg.screenshot(path=f"{cap}/c_pasantes_atras_3d.png")
+    pg.click(".p-3d .p-c-cerrar")
+    control(cerca(pl["BARRA"][1], 20) and cerca(pl["TRAVESANO"][1], 0) and cerca(pl["TRAVESANO"][0], -20) and not av,
+            "3D pasantes: barrotes adelante, travesaño detrás")
+    pg.select_option("#p-perfil_marco", "Tubo cuadrado 30×30×1,5")
+    pg.wait_for_timeout(600)
+    pl, av, cu, pz = planos3d()
+    control(av and "sobresalen" in pg.inner_text(".p-3d-aviso"), "3D pasantes: avisa si no entran en el marco")
+    pg.click(".p-3d .p-c-cerrar")
+    # vuelve como estaba (lo que sigue usa el marco 40×40×2)
+    pg.check("input[name=p-armado][value=a_tope]")
+    pg.select_option("#p-perfil_marco", "Tubo cuadrado 40×40×2")
+    pg.select_option("#p-perfil_trav", "")
+    pg.click(".p-tarjeta[data-v=rombos]")
+    pg.wait_for_timeout(600)
     # perfiles: tarjetas plegables, nombre automático, medidas que no se entienden → el marco queda sin perfil válido
     pg.click("#p-admin")
     pg.wait_for_selector("#hoja-perfiles[open]")

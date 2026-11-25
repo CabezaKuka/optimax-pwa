@@ -1,33 +1,82 @@
 // Vista 3D de la reja o el portón (DEMO y PRO; 25-nov, Max: «que se pueda rotar», sin herrajes).
 // Sale del mismo cálculo que el plano: cada forma de la elevación (R.formas) con la profundidad de su perfil.
-//   - Tubo cuadrado / rectangular, macizo cuadrado, planchuela, ángulo: el contorno de la elevación (cortes a inglete y
-//     en ángulo incluidos) extruido con la medida que no se ve de frente (b; cuadrado: a). El ángulo va como barra
-//     llena (simplificación).
+//   - Tubo cuadrado / rectangular, macizo cuadrado, planchuela: el contorno de la elevación (cortes a inglete y en
+//     ángulo incluidos) extruido con la medida que no se ve de frente (b; cuadrado: a).
+//   - Ángulo (25-nov, Max): la cara ancha adelante (el contorno con el espesor t) y el ala hacia atrás sobre el borde
+//     más largo (en el marco, el de afuera): la parte hueca queda atrás.
 //   - Tubo y macizo redondo: cilindro de diámetro a sobre el eje de la pieza.
 //   - Chapa ciega: placa del espesor de la chapa.
-// Todo centrado en el plano del marco (z = 0). Unidades en mm, y hacia arriba (como la elevación).
+// Profundidad (z, hacia el que mira): el marco centrado en z = 0. A tope: todo centrado. Pasantes (travesaños
+// superpuestos, 25-nov, Max): el de adelante (travesaño o barrotes, a elegir) al ras de la cara del frente del marco y
+// el otro apoyado detrás. Unidades en mm, y hacia arriba (como la elevación).
 // three.js (vendor/three.min.js) se carga recién al abrir la vista.
 
 const COLOR = { MARCO: "#46596c", TRAVESANO: "#71879b", BARRA: "#9db3c7", CHAPA: "#c9d1d9" };
 const BORDE = "#1d2833";
 const REDONDOS = new Set(["tubo_red", "macizo_red"]);
+const fmt = (v) => String(Math.round(v * 10) / 10).replace(".", ",");
 
-/** Piezas 3D (sin three.js): [{capa, tipo: "extruir", pts, prof} | {capa, tipo: "cilindro", centro, dir, largo, d}]. */
-export function piezas3D(R, perfiles, espChapa = 1.5) {
-  const out = [];
-  for (const [capa, pts, k] of R.formas) {
-    const p = k ? perfiles[k.split("\u0001")[0]] : null;
-    if (capa === "CHAPA" || !p) {
-      out.push({ capa, tipo: "extruir", pts, prof: Math.max(0.5, Number(espChapa) || 1.5) });
-      continue;
-    }
-    if (REDONDOS.has(p.forma)) {
-      out.push({ capa, tipo: "cilindro", ...eje(pts), d: p.a });
-      continue;
-    }
-    const prof = p.forma === "tubo" || p.forma === "angulo" || p.forma === "macizo_cuad" || p.forma === "planchuela" ? (p.b || p.a) : p.a;
-    out.push({ capa, tipo: "extruir", pts, prof });
+const profundidad = (p) => (p.forma === "tubo" || p.forma === "angulo" || p.forma === "macizo_cuad" || p.forma === "planchuela"
+  ? (p.b || p.a) : p.a);
+
+/**
+ * Piezas 3D (sin three.js). {piezas: [{capa, tipo: "extruir", pts, z0, z1} | {capa, tipo: "cilindro", centro, dir,
+ * largo, d, z}], n: piezas del plano, aviso}.
+ */
+export function piezas3D(R, perfiles, { espChapa = 1.5, pasantes = false, travAtras = false } = {}) {
+  const perfil = (k) => (k ? perfiles[k.split("\u0001")[0]] || null : null);
+  const formas = R.formas.map(([capa, pts, k]) => ({ capa, pts, p: capa === "CHAPA" ? null : perfil(k) }));
+  const prof = (f) => (f.p ? profundidad(f.p) : Math.max(0.5, Number(espChapa) || 1.5));
+  const maxCapa = (c) => Math.max(0, ...formas.filter((f) => f.capa === c).map(prof));
+  const Dm = maxCapa("MARCO") || maxCapa("BARRA") || 20;
+  const adelante = travAtras ? "BARRA" : "TRAVESANO", atras = travAtras ? "TRAVESANO" : "BARRA";
+  const dAdel = maxCapa(adelante), dAtras = maxCapa(atras);
+  let aviso = "";
+  if (pasantes && dAdel + dAtras > Dm + 0.05) {
+    aviso = `Los ${travAtras ? "barrotes" : "travesaños"} y los ${travAtras ? "travesaños" : "barrotes"} juntos ` +
+      `(${fmt(dAdel + dAtras)} mm) son más gruesos que el marco (${fmt(Dm)} mm): sobresalen atrás.`;
   }
+  const piezas = [];
+  for (const f of formas) {
+    const d = prof(f);
+    let z1 = d / 2;                                          // cara de adelante
+    if (pasantes && f.capa === adelante) z1 = Dm / 2;
+    else if (pasantes && f.capa === atras) z1 = Dm / 2 - dAdel;
+    const z0 = z1 - d;
+    if (f.p && REDONDOS.has(f.p.forma)) {
+      piezas.push({ capa: f.capa, tipo: "cilindro", ...eje(f.pts), d: f.p.a, z: (z0 + z1) / 2 });
+    } else if (f.p && f.p.forma === "angulo" && f.p.t > 0 && f.p.t < d) {
+      piezas.push({ capa: f.capa, tipo: "extruir", pts: f.pts, z0: z1 - f.p.t, z1 });           // cara ancha
+      const ala = franjaBorde(f.pts, f.p.t);
+      if (ala.length >= 3) piezas.push({ capa: f.capa, tipo: "extruir", pts: ala, z0, z1: z1 - f.p.t });
+    } else {
+      piezas.push({ capa: f.capa, tipo: "extruir", pts: f.pts, z0, z1 });
+    }
+  }
+  return { piezas, n: R.formas.length, aviso };
+}
+
+/** Franja de ancho t del polígono junto a su borde más largo (el ala del ángulo; en el marco, el borde de afuera). */
+function franjaBorde(pts, t) {
+  let i0 = 0, lmax = -1;
+  pts.forEach((p, i) => {
+    const q = pts[(i + 1) % pts.length], l = Math.hypot(q[0] - p[0], q[1] - p[1]);
+    if (l > lmax) { lmax = l; i0 = i; }
+  });
+  const p = pts[i0], q = pts[(i0 + 1) % pts.length];
+  const cx = pts.reduce((s, v) => s + v[0], 0) / pts.length, cy = pts.reduce((s, v) => s + v[1], 0) / pts.length;
+  let nx = -(q[1] - p[1]) / lmax, ny = (q[0] - p[0]) / lmax;
+  if ((cx - p[0]) * nx + (cy - p[1]) * ny < 0) { nx = -nx; ny = -ny; }     // hacia adentro de la pieza
+  const dist = (v) => (v[0] - p[0]) * nx + (v[1] - p[1]) * ny;
+  const out = [];                                          // recorte por el semiplano dist <= t (Sutherland-Hodgman)
+  pts.forEach((a, i) => {
+    const b = pts[(i + 1) % pts.length], da = dist(a) - t, db = dist(b) - t;
+    if (da <= 0) out.push(a);
+    if ((da < 0 && db > 0) || (da > 0 && db < 0)) {
+      const u = da / (da - db);
+      out.push([a[0] + u * (b[0] - a[0]), a[1] + u * (b[1] - a[1])]);
+    }
+  });
   return out;
 }
 
@@ -51,7 +100,7 @@ let abierta = null;
  * Abre la vista 3D a pantalla completa. R = resultado del ítem (calc.resultados[0]); perfiles = {nombre: Perfil};
  * opts.piso = true para dibujar el piso (portones; la reja de ventana va en la pared).
  */
-export async function abrir3D(R, perfiles, { espChapa = 1.5, piso = false } = {}) {
+export async function abrir3D(R, perfiles, { espChapa = 1.5, piso = false, pasantes = false, travAtras = false } = {}) {
   if (abierta) return;
   const capa = document.createElement("div");
   capa.className = "p-completa p-3d";
@@ -59,6 +108,7 @@ export async function abrir3D(R, perfiles, { espChapa = 1.5, piso = false } = {}
       <button type="button" class="p-3d-frente">Frente</button><button type="button" class="p-3d-girar">Girar</button>
       <button type="button" class="p-c-cerrar">Cerrar</button></div>
     <div class="p-3d-lienzo"><p class="nota p-3d-cargando">Cargando la vista 3D…</p></div>
+    <p class="p-3d-aviso" hidden></p>
     <p class="p-3d-ayuda">Un dedo gira · dos dedos acercan y mueven</p>`;
   document.body.append(capa);
   document.body.classList.add("sin-scroll");
@@ -119,7 +169,8 @@ export async function abrir3D(R, perfiles, { espChapa = 1.5, piso = false } = {}
     basura.push(geo, ed);
     grupo.add(m, new T.LineSegments(ed, lineas));
   };
-  const lista = piezas3D(R, perfiles, espChapa);
+  const { piezas: lista, n, aviso } = piezas3D(R, perfiles, { espChapa, pasantes, travAtras });
+  if (aviso) { const a = capa.querySelector(".p-3d-aviso"); a.textContent = `⚠ ${aviso}`; a.hidden = false; }
   const Y = new T.Vector3(0, 1, 0);
   for (const pz of lista) {
     if (pz.tipo === "extruir") {
@@ -127,13 +178,13 @@ export async function abrir3D(R, perfiles, { espChapa = 1.5, piso = false } = {}
       sh.moveTo(pz.pts[0][0], pz.pts[0][1]);
       for (const [x, y] of pz.pts.slice(1)) sh.lineTo(x, y);
       sh.closePath();
-      const geo = new T.ExtrudeGeometry(sh, { depth: pz.prof, bevelEnabled: false });
-      geo.translate(0, 0, -pz.prof / 2);
+      const geo = new T.ExtrudeGeometry(sh, { depth: pz.z1 - pz.z0, bevelEnabled: false });
+      geo.translate(0, 0, pz.z0);
       agregar(geo, pz.capa);
     } else {
       const geo = new T.CylinderGeometry(pz.d / 2, pz.d / 2, pz.largo, 24);
       geo.applyQuaternion(new T.Quaternion().setFromUnitVectors(Y, new T.Vector3(pz.dir[0], pz.dir[1], 0)));
-      geo.translate(pz.centro[0], pz.centro[1], 0);
+      geo.translate(pz.centro[0], pz.centro[1], pz.z);
       agregar(geo, pz.capa);
     }
   }
@@ -148,7 +199,15 @@ export async function abrir3D(R, perfiles, { espChapa = 1.5, piso = false } = {}
     basura.push(geo, m);
     escena.add(new T.Mesh(geo, m));
   }
-  capa.dataset.piezas = String(lista.length);              // para las pruebas
+  capa.dataset.piezas = String(n);                         // piezas del plano (para las pruebas)
+  capa.dataset.cuerpos = String(lista.length);
+  const planos = {};                                       // [z de atrás, z de adelante] por capa (para las pruebas)
+  for (const pz of lista) {
+    const [a0, a1] = pz.tipo === "cilindro" ? [pz.z - pz.d / 2, pz.z + pz.d / 2] : [pz.z0, pz.z1];
+    const p = planos[pz.capa] ||= [a0, a1];
+    p[0] = Math.min(p[0], a0); p[1] = Math.max(p[1], a1);
+  }
+  capa.dataset.planos = JSON.stringify(planos);
 
   const cam = new T.PerspectiveCamera(35, 1, 10, 200000);
   const ctl = new (T.OrbitControls)(cam, ren.domElement);
