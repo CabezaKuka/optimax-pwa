@@ -16,6 +16,8 @@ inicio.js                     pantalla de inicio
 modulos/chapa.js              módulo Chapa (figura, medidas, plancha, lista de chapas)
 modulos/barras.js             módulo Barras y tubos (piezas, pegar lista, barras dibujadas, lista de corte, precio PRO)
 barras/motor.js               corte de barras de la DEMO (lectura de listas, cálculo rápido); el completo es PRO
+modulos/guillotina.js         módulo Guillotina (tablero, piezas, planchas dibujadas con los cortes numerados, orden de corte)
+guillotina/motor.js           cortes de guillotina de la DEMO (144 combinaciones fijas); la búsqueda completa es PRO
 licencia.js                   esPro() y cargarPro(): la licencia se conecta al final (Railway)
 hoja-pro.js, iconos.js        hoja de compra; íconos de los módulos
 vista.js                      dibujo de la plancha (SVG), cotas, zoom y desplazamiento

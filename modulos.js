@@ -26,9 +26,10 @@ export const MODULOS = [
     cargar: () => import("./modulos/barras.js"),
   },
   {
-    id: "guillotina", oficio: "Carpintería", icono: "guillotina", disponible: false,
+    id: "guillotina", oficio: "Carpintería", icono: "guillotina", disponible: true,
     nombre: "Guillotina y melamina",
-    descripcion: "Cortes de lado a lado para tableros de melamina o chapa.",
+    descripcion: "Cortes de lado a lado para tableros de melamina o chapa, con el orden de los cortes.",
+    cargar: () => import("./modulos/guillotina.js"),
   },
 ];
 

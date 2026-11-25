@@ -335,6 +335,8 @@ body.sin-scroll { overflow: hidden; }
 .fila-tit { display: grid; grid-template-columns: minmax(0, 1fr) 132px 40px; gap: 8px; font-size: 13px; color: var(--gris); padding: 0 2px 4px; }
 .piezas { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .pieza { display: grid; grid-template-columns: minmax(0, 1fr) 132px 40px; gap: 8px; align-items: center; }
+.fila-tit-g, .pieza-g { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 120px 36px; }
+.pieza-g .entrada input { padding-left: 6px; }
 .paso {
   display: grid; grid-template-columns: 42px 1fr 42px; align-items: center; height: 44px;
   border: 1px solid #c3cbd4; border-radius: 6px; background: var(--hoja); overflow: hidden;
@@ -368,6 +370,7 @@ body.sin-scroll { overflow: hidden; }
 .resumen { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .dato { background: var(--acero); color: var(--tiza); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 2px; }
 .dato-v { font: 600 26px/1.05 var(--num); }
+.dato-v-chico { font-size: 20px; }
 .dato-r { font-size: 13px; line-height: 1.2; color: var(--cota); }
 .barras-dib { margin-top: 14px; display: grid; gap: 8px; }
 .barra-fila { display: grid; grid-template-columns: 40px minmax(0, 1fr); align-items: center; gap: 8px; }
@@ -398,6 +401,19 @@ body.sin-scroll { overflow: hidden; }
 .hoja textarea {
   width: 100%; padding: 10px; border: 1px solid #c3cbd4; border-radius: 6px; font: 500 17px var(--num); resize: vertical;
 }
+
+/* ------------------------------------------------------------ Guillotina */
+.g-plancha { margin: 14px 0 0; }
+.g-plancha figcaption { font-weight: 700; margin-bottom: 6px; }
+.g-plancha svg { width: 100%; height: auto; display: block; border-radius: 3px; }
+.g-plancha text { font-family: var(--num); font-weight: 600; fill: var(--tinta); }
+.g-corte { stroke: var(--rojo); }
+.g-num { fill: var(--rojo); }
+.g-num-t { fill: #fff !important; }
+.g-cortes { margin-top: 6px; font-size: 15px; }
+.g-cortes summary { cursor: pointer; font-weight: 600; color: var(--rojo-osc); min-height: 36px; display: flex; align-items: center; }
+.g-cortes ol { margin: 4px 0 0; padding-left: 0; list-style: none; }
+.g-cortes li { padding: 4px 0; border-bottom: 1px solid var(--linea); }
 
 /* ------------------------------------------------------------ pie */
 .pie {
