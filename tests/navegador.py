@@ -210,6 +210,11 @@ def guillotina_demo(pg, base, cap):
     pg.wait_for_selector("#g-resumen .dato")
     control(pg.locator(".pieza").count() == 3, "guillotina: 3 renglones de ejemplo")
     control(pg.inner_text("#g-resumen .dato-v >> nth=0") == "1" and pg.is_hidden("#g-demo"), "guillotina: el ejemplo en 1 plancha")
+    control(pg.locator("#t-btn .candado").count() == 1, "trabajos DEMO: barra con candado")
+    pg.click("#t-btn")
+    pg.wait_for_selector("#hoja-pro[open]")
+    control("trabajos" in pg.inner_text("#pro-motivo"), "trabajos DEMO: abre la compra")
+    pg.keyboard.press("Escape")
     control(pg.locator(".g-plancha").count() == 1 and pg.locator(".g-plancha rect").count() >= 6, "guillotina: plancha dibujada")
     if cap:
         pg.screenshot(path=f"{cap}/c_guillotina.png", full_page=True)
@@ -510,10 +515,187 @@ def pro(b, base, cap):
     ctx.close()
 
 
+# ------------------------------------------------------------------ trabajos (PRO) e ida y vuelta con la PC
+def py_pc(pcdir, codigo):
+    """Corre código Python con el programa de la PC (cwd = repo nesting-cnc). Devuelve la salida (o '' si falló)."""
+    r = subprocess.run([sys.executable, "-c", codigo], cwd=pcdir, env={**os.environ, "OPTIMAX_IDIOMA": "es"},
+                       capture_output=True, text=True)
+    if r.returncode:
+        print(r.stderr[-1500:])
+    return r.stdout.strip()
+
+
+def bajar_nesting(pg, ruta):
+    pg.click("#t-btn")
+    pg.wait_for_selector("#hoja-trabajos[open]")
+    with pg.expect_download() as d:
+        pg.click("#t-bajar")
+    d.value.save_as(ruta)
+    pg.keyboard.press("Escape")
+
+
+def abrir_nesting(pg, ruta):
+    if not pg.locator("#hoja-trabajos[open]").count():
+        pg.click("#t-btn")
+        pg.wait_for_selector("#hoja-trabajos[open]")
+    pg.set_input_files("#t-file", ruta)
+    pg.wait_for_timeout(1200)
+
+
+def trabajos(b, base, pcdir, cap=None):
+    import tempfile
+    tmp = tempfile.mkdtemp(prefix="trabajos_")
+    ctx = b.new_context(viewport={"width": 390, "height": 844}, device_scale_factor=2, is_mobile=True, has_touch=True,
+                        accept_downloads=True)
+    pg = ctx.new_page()
+    errs = []
+    pg.on("pageerror", lambda e: errs.append(str(e)))
+    pg.goto(base + "?pro=1#guillotina")
+    pg.wait_for_selector("#g-resumen .dato", timeout=10000)
+    # guardar en el equipo, «sin guardar», nuevo con confirmación, abrir de la lista
+    control(pg.locator("#t-btn .candado").count() == 0 and "Sin guardar" in pg.inner_text("#t-nom-actual"), "trabajos PRO: barra sin candado")
+    pg.click("#t-btn")
+    pg.wait_for_selector("#hoja-trabajos[open]")
+    control(pg.input_value("#t-nombre") == "Melamina", "trabajos: nombre sugerido (material)")
+    pg.fill("#t-nombre", "Cocina Pérez")
+    pg.click("#t-guardar")
+    control("Guardado" in pg.inner_text("#t-aviso") and pg.locator(".t-item").count() == 1, "trabajos: guardar en el equipo")
+    pg.keyboard.press("Escape")
+    control(pg.inner_text("#t-nom-actual") == "Cocina Pérez", "trabajos: nombre del trabajo actual")
+    pg.click(".pieza >> nth=0 >> .mas")
+    pg.wait_for_timeout(300)
+    control("(sin guardar)" in pg.inner_text("#t-nom-actual"), "trabajos: cambio sin guardar")
+    pg.click("#t-btn")
+    pg.click("#t-nuevo")
+    control(pg.is_visible("#t-confirma"), "trabajos: nuevo con cambios pide confirmación")
+    pg.click("#t-conf-si")
+    pg.wait_for_timeout(600)
+    control(pg.locator(".pieza").count() == 1 and pg.inner_text("#t-nom-actual") == "Sin guardar", "trabajos: nuevo")
+    pg.click("#t-btn")
+    pg.click(".t-abrir >> nth=0")
+    pg.wait_for_timeout(800)
+    control(pg.locator(".pieza").count() == 3 and pg.inner_text("#t-nom-actual") == "Cocina Pérez", "trabajos: abrir de la lista")
+    control(pg.inner_text(".pieza >> nth=0 >> .cant") == "2", "trabajos: abre lo guardado, no lo cambiado")
+    if cap:
+        pg.screenshot(path=f"{cap}/t_barra.png")
+        pg.click("#t-btn")
+        pg.wait_for_selector("#hoja-trabajos[open]")
+        pg.wait_for_timeout(500)                          # termina la animación de la hoja
+        pg.screenshot(path=f"{cap}/t_hoja.png")
+        pg.keyboard.press("Escape")
+    # precio en la plancha elegida y .nesting para la PC
+    pg.click("#g-admin")
+    pg.click("#planchas .perfil-ed >> nth=8 >> .pe-cab")
+    pg.fill("#planchas .perfil-ed >> nth=8 >> [data-c=precio]", "520")
+    pg.click("#hoja-planchas button[value=listo]")
+    pg.wait_for_timeout(300)
+    g_pwa = os.path.join(tmp, "g_pwa.nesting")
+    bajar_nesting(pg, g_pwa)
+    control(os.path.getsize(g_pwa) > 100, "trabajos: descarga el .nesting de la guillotina")
+    if pcdir:
+        out = py_pc(pcdir, f"""
+import nesting as N, guillotina as G
+_, op, _ = N.cargar_proyecto({g_pwa!r})
+g = op["guillotina"]
+pz, _ = G.leer_texto(g["lista"])
+ok = op["tipo"] == "guillotina" and g["material"] == "Melamina 2440×1220×18 mm" and abs(float(g["precio_m2"].replace(",", ".")) * 2.44 * 1.22 - 520) < 0.05
+ok = ok and sorted(pz) == sorted([(600.0, 400.0, 2), (300.0, 1200.0, 2), (450.0, 450.0, 1)]) and g["rotar"] == "1"
+print("OK" if ok else ("MAL", g, pz))""")
+        control(out == "OK", f"PC: lee el .nesting de guillotina de la PWA ({out[:200]})")
+        g_pc = os.path.join(tmp, "Chapa de la PC.nesting")
+        py_pc(pcdir, f"""
+import nesting as N
+N.guardar_proyecto({g_pc!r}, [], {{"tipo": "guillotina", "guillotina": {{"largo": "3000", "ancho": "1500", "corte": "3",
+  "refilado": "5", "max_corte": "0", "rotar": "0", "material": "Chapa negra 1,5 mm", "precio_m2": "100", "kg_m2": "11,775",
+  "reparto": "1", "lista": "500\\t250\\t4\\n300\\t300\\t2"}}}}, None)""")
+        abrir_nesting(pg, g_pc)
+        control(pg.input_value("#g-plancha") == "" and pg.input_value("#g-largo") == "3000" and pg.input_value("#g-precio") == "450",
+                "PWA: abre el .nesting de guillotina de la PC (otra medida, precio por m² → por plancha)")
+        control(pg.locator(".pieza").count() == 2 and not pg.is_checked("#g-rotar") and pg.is_checked("#g-reparto"), "PWA: piezas y opciones de la PC")
+        control("no está en tu lista" in pg.inner_text("#t-aviso") and pg.inner_text("#t-nom-actual") == "Chapa de la PC",
+                "PWA: avisa la plancha que no está y toma el nombre del archivo")
+        b_pc = os.path.join(tmp, "barras_pc.nesting")
+        py_pc(pcdir, f"""
+import nesting as N
+N.guardar_proyecto({b_pc!r}, [], {{"tipo": "barras", "barras": {{"largo": "6000", "corte": "3", "material": "Tubo 40x40",
+  "perfil": "Tubo 40x40", "precio": "180", "kg_m": "2,4", "reparto": "0", "lista": "1200\\t5\\n850\\t3"}}}}, None)""")
+        abrir_nesting(pg, b_pc)
+        control("barras y tubos" in pg.inner_text("#t-aviso") and pg.locator(".pieza").count() == 2,
+                "PWA: un .nesting de otro módulo avisa y no cambia nada")
+        pg.keyboard.press("Escape")
+        # barras
+        pg.goto(base + "?pro=1#barras")
+        pg.wait_for_selector("#b-resumen .dato", timeout=10000)
+        abrir_nesting(pg, b_pc)
+        control(pg.locator(".pieza").count() == 2 and pg.input_value("#b-precio") == "180" and pg.input_value("#b-largo") == "6000",
+                "PWA: abre el .nesting de barras de la PC")
+        pg.keyboard.press("Escape")
+        b_pwa = os.path.join(tmp, "b_pwa.nesting")
+        bajar_nesting(pg, b_pwa)
+        out = py_pc(pcdir, f"""
+import nesting as N, barras
+_, op, _ = N.cargar_proyecto({b_pwa!r})
+b = op["barras"]
+pz, _ = barras.leer_texto(b["lista"])
+print("OK" if op["tipo"] == "barras" and sorted(pz) == [(850.0, 3), (1200.0, 5)] and b["precio"] == "180" and b["material"] == "Barra de 6000 mm" else ("MAL", b, pz))""")
+        control(out == "OK", f"PC: lee el .nesting de barras de la PWA ({out[:200]})")
+        # portones: la PC calcula lo mismo que la PWA
+        pg.goto(base + "?pro=1#portones")
+        pg.wait_for_selector("#p-lista li", timeout=10000)
+        pg.wait_for_timeout(1500)
+        n_pwa = pg.locator("#p-lista li").count()
+        p_pwa = os.path.join(tmp, "p_pwa.nesting")
+        bajar_nesting(pg, p_pwa)
+        out = py_pc(pcdir, f"""
+import nesting as N, portones as P
+_, op, _ = N.cargar_proyecto({p_pwa!r})
+p = op["portones"]
+items = [P.normalizar_item(x) for x in p["items"]]
+c = P.calcular(items, P.perfiles_de(p["perfiles"]), 3.0)
+print(len(c["filas"]))""")
+        control(out == str(n_pwa) and n_pwa > 0, f"PC: calcula el portón de la PWA con la misma lista de corte ({out} y {n_pwa} renglones)")
+        p_pc = os.path.join(tmp, "portones_pc.nesting")
+        py_pc(pcdir, f"""
+import nesting as N, portones as P
+mats = [{{"nombre": "Tubo 50 de la PC", "forma": "tubo", "medidas": "50x50x2", "largo": 6000, "precio": 150, "kg_m": 3}},
+        {{"nombre": "Mi tubo 20", "forma": "tubo", "medidas": "20x20x1,5", "largo": 6000, "precio": 40, "kg_m": 0.9}}]
+it = dict(P.ITEM_DEF, tipo="reja_ventana", nombre="Reja cocina", ancho=1200, alto=1000, perfil_marco="Tubo 50 de la PC", perfil_relleno="Mi tubo 20")
+it2 = dict(it, nombre="Reja baño", ancho=600)
+N.guardar_proyecto({p_pc!r}, [], {{"tipo": "portones", "portones": {{"version": 1, "items": [it, it2], "corte": "4",
+  "colorear": True, "cotas": True, "filtro": "Todos", "costos": {{"soldadura_m": 12, "pintura_m2": 30}}, "perfiles": mats}}}}, None)""")
+        abrir_nesting(pg, p_pc)
+        av = pg.inner_text("#t-aviso")
+        control("2 rejas o portones" in av and "Reja cocina" in av and "1 perfil" in av, f"PWA: abre el .nesting de portones de la PC con avisos ({av[:160]})")
+        control(pg.input_value("#p-perfil_marco") == "Tubo cuadrado 50×50×2" and pg.input_value("#p-perfil_relleno") == "Tubo cuadrado 20×20×1,5",
+                "PWA: el portón usa los perfiles (nuevo agregado, el igual de la lista)")
+        pg.keyboard.press("Escape")
+    # chapa: solo en el equipo
+    pg.goto(base + "?pro=1#chapa")
+    pg.wait_for_selector("#chapas li")
+    pg.click("#t-btn")
+    control(pg.locator("#t-bajar").count() == 0, "trabajos chapa: sin .nesting")
+    pg.fill("#t-nombre", "Codo prueba")
+    pg.click("#t-guardar")
+    pg.keyboard.press("Escape")
+    inp = pg.locator("#form input >> nth=0")
+    antes = inp.input_value()
+    inp.fill("777")
+    pg.wait_for_timeout(500)
+    pg.click("#t-btn")
+    pg.click(".t-abrir >> nth=0")
+    control(pg.is_visible("#t-confirma"), "trabajos chapa: abrir con cambios pide confirmación")
+    pg.click("#t-conf-si")
+    pg.wait_for_timeout(800)
+    control(pg.locator("#form input >> nth=0").input_value() == antes, "trabajos chapa: abre lo guardado")
+    control(not errs, f"trabajos: errores de JS {errs}")
+    ctx.close()
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--capturas")
     ap.add_argument("--chrome", default="/usr/bin/google-chrome" if os.path.exists("/usr/bin/google-chrome") else None)
+    ap.add_argument("--pc", help="repo del programa de la PC (nesting-cnc): prueba los .nesting de ida y vuelta")
     a = ap.parse_args()
     if a.capturas:
         os.makedirs(a.capturas, exist_ok=True)
@@ -528,6 +710,7 @@ def main():
             pc(b, base, a.capturas)
             if os.path.isdir(os.path.join(RAIZ, "pro")):
                 pro(b, base, a.capturas)
+                trabajos(b, base, a.pc, a.capturas)
             b.close()
     finally:
         srv.terminate()

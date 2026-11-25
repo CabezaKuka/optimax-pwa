@@ -8,6 +8,7 @@ import { Vista } from "../vista.js";
 import { esPro, cargarPro } from "../licencia.js";
 import { ponerContexto, abrirPro } from "../hoja-pro.js";
 import { abrirSalida, cerrarSalida } from "../salida.js";
+import { armarTrabajos } from "../trabajos.js";
 
 const CLAVE_MEMORIA = "optimax-pwa";
 const ESPESOR_DEF = "2";
@@ -35,7 +36,7 @@ function cargarMemoria() {
   try { return JSON.parse(localStorage.getItem(CLAVE_MEMORIA)) || {}; } catch { return {}; }
 }
 
-let raiz, vista, memoria, figs, fig, crudo, espesor, reloj, salida = null, ultimas = null;
+let raiz, vista, memoria, figs, fig, crudo, espesor, reloj, salida = null, ultimas = null, trabajos = null;
 let limpiar = [];
 
 export async function montar(cont) {
@@ -57,6 +58,10 @@ export async function montar(cont) {
   armarPlancha();
   armarImprimir();
   ponerContexto(fig.nombre, figurasProHTML());
+  trabajos = armarTrabajos(raiz.querySelector(".col-form"), {
+    modulo: "chapa", tipo: "chapa_pwa", nesting: false, datos: datosTrabajo, cargar: cargarTrabajo,
+    nuevo: nuevoTrabajo, sugerido: () => fig.nombre,
+  });
   calcular({ ajustar: true });
 }
 
@@ -71,6 +76,7 @@ export function desmontar() {
 
 function guardarMemoria() {
   try { localStorage.setItem(CLAVE_MEMORIA, JSON.stringify(memoria)); } catch { /* sin almacenamiento */ }
+  trabajos?.cambio();
 }
 
 const PLANTILLA = `
@@ -375,4 +381,29 @@ function cerrarCompleta(desdeHistorial = false) {
   document.body.classList.remove("sin-scroll");
   vista.modoCompleto(false);
   if (!desdeHistorial && history.state?.completa) history.back();
+}
+
+// ------------------------------------------------------------------ trabajo (solo en este equipo)
+// El .nesting de chapa de la PC lleva el DXF de cada pieza y la PWA no da DXF: los trabajos de chapa quedan en el equipo.
+function datosTrabajo() {
+  return { tipo: "chapa_pwa", chapa: { figura: fig.id, espesor: String(espesor), valores: { ...crudo } } };
+}
+
+async function cargarTrabajo(op) {
+  const c = op.chapa || {};
+  if (!figs.has(c.figura)) throw new Error("Esa figura no está disponible en esta versión.");
+  memoria.figura = c.figura;
+  memoria.espesor = String(c.espesor ?? ESPESOR_DEF);
+  memoria.valores[c.figura] = { ...(c.valores || {}) };
+  guardarMemoria();
+  desmontar();
+  await montar(raiz);
+  return "";
+}
+
+async function nuevoTrabajo() {
+  delete memoria.valores[fig.id];                       // la figura actual con sus medidas de ejemplo
+  guardarMemoria();
+  desmontar();
+  await montar(raiz);
 }
