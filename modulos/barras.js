@@ -66,11 +66,15 @@ const PLANTILLA = `
 <div class="app app-barras">
   <section class="b-datos" aria-label="Barra y piezas">
     <h1 class="titulo-figura">Barras y tubos</h1>
+    <div class="grupo">
+    <h2 class="sub">Barra</h2>
     <div class="campo"><label class="rotulo" for="b-largo">Largo de la barra</label>
       <span class="entrada"><input id="b-largo" type="text" inputmode="decimal" spellcheck="false"><span class="unidad">mm</span></span></div>
     <div class="campo"><label class="rotulo" for="b-corte">Ancho del corte (sierra o disco)</label>
       <span class="entrada"><input id="b-corte" type="text" inputmode="decimal" spellcheck="false"><span class="unidad">mm</span></span></div>
+    </div>
 
+    <div class="grupo">
     <h2 class="sub">Piezas a cortar</h2>
     <div class="fila-tit" aria-hidden="true"><span>Largo (mm)</span><span>Cantidad</span></div>
     <ul class="piezas" id="piezas"></ul>
@@ -78,6 +82,7 @@ const PLANTILLA = `
       <button type="button" class="btn-sec" id="b-agregar">Agregar pieza</button>
       <button type="button" class="btn-sec" id="b-pegar">Pegar lista</button>
       <button type="button" class="btn-sec btn-quieto" id="b-vaciar">Vaciar</button>
+    </div>
     </div>
 
   </section>
@@ -90,7 +95,7 @@ const PLANTILLA = `
       <div class="barras-dib" id="b-dib"></div>
       <h2 class="sub">Lista de corte</h2>
       <ol class="lista-corte" id="b-lista"></ol>
-    <div class="precio">
+    <div class="precio grupo">
         <h2 class="sub">Precio por pieza <span class="tag">PRO</span></h2>
         <div class="campo"><label class="rotulo" for="b-precio">Precio de una barra</label>
           <span class="entrada"><input id="b-precio" type="text" inputmode="decimal" spellcheck="false" placeholder="0"></span></div>
