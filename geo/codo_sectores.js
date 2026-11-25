@@ -77,4 +77,48 @@ export const CodoSectores = {
     if (nMed > 0) armar(base + " - intermedio", nMed, f, f.map((fi) => -fi));
     return piezas;
   },
+
+  /**
+   * Codo armado en 3D (geo/arma3d.js): cada gajo es un tramo recto de caño (radio neutro) cortado por dos planos que
+   * pasan por el eje de la curva. Curva en el plano xz, centro en el origen: arranca en x = rc subiendo (z) y gira
+   * hacia −x. Extremo, intermedios (centrados a 2β, 4β…) y el otro extremo (el mismo, dado vuelta).
+   */
+  armado3D(v, t) {
+    const piezas = this.generar(v, t);
+    const [r, beta] = this.datos(v, t);
+    const rc = v.rc, W = 2 * Math.PI * r, th0 = COSTURA[v.costura], A = (v.ang * Math.PI) / 180;
+    const th = [], xs = [], f = [];
+    for (let k = 0; k <= N; k++) {
+      th.push(th0 + (2 * Math.PI * k) / N);
+      xs.push((W * k) / N);
+      f.push(Math.tan(beta) * (rc + r * Math.cos(th[k])));
+    }
+    const radial = (psi) => [Math.cos(psi), 0, Math.sin(psi)];
+    const tang = (psi) => [-Math.sin(psi), 0, Math.cos(psi)];
+    // punto de la generatriz k del gajo centrado en psi, a s mm sobre el eje (signo: sentido del eje)
+    const punto = (psi, sentido, k, s) => {
+      const R = radial(psi), T = tang(psi), q = rc + r * Math.cos(th[k]), n = r * Math.sin(th[k]);
+      return [q * R[0] + sentido * s * T[0], n, q * R[2] + sentido * s * T[2]];
+    };
+    const rangos = dividirRango(N, v.partes);
+    const nMed = v.piezas - 2;
+    const out = [];
+    // gajo (pieza de la plantilla j) puesto en psi: y de la chapa → s = y − desde
+    const gajo = (nombre, psi, sentido, arriba, abajo, desde) => {
+      rangos.forEach(([i0, i1]) => {
+        const banda = [];
+        for (let i = i0; i <= i1; i++) {
+          banda.push([[xs[i] - xs[i0], abajo[i]], [xs[i] - xs[i0], arriba[i]],
+            punto(psi, sentido, i, abajo[i] - desde), punto(psi, sentido, i, arriba[i] - desde)]);
+        }
+        out.push({ nombre, tono: "corte", bandas: [banda] });
+      });
+    };
+    const cero = new Array(N + 1).fill(0.0);
+    const ext = piezas[0].nombre.replace(/ \d+\/\d+$/, ""), med = nMed > 0 ? piezas[rangos.length].nombre.replace(/ \d+\/\d+$/, "") : "";
+    gajo(ext, 0, 1, f.map((fi) => fi + v.recto), cero, v.recto);
+    for (let i = 0; i < nMed; i++) gajo(med, 2 * beta * (i + 1), 1, f, f.map((fi) => -fi), 0);
+    gajo(ext, A, -1, f.map((fi) => fi + v.recto), cero, v.recto);
+    return out;
+  },
 };

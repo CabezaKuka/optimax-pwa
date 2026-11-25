@@ -11,7 +11,8 @@
 // barrotes, a elegir) y el otro detrás; cuadrícula / rombos cruzados, una familia (verticales / diagonal «/») adelante y
 // la otra detrás; chapa con los travesaños atrás, la chapa adelante; chapa a tope, paños y travesaños en una capa. Marco de ángulo (25-nov, Max): travesaños, relleno y chapa adentro de la L, apoyados detrás de
 // la cara (el cálculo ya los alarga hasta las alas). Unidades en mm, y hacia arriba (como la elevación).
-// three.js (vendor/three.min.js) se carga recién al abrir la vista.
+// three.js (vendor/three.min.js) se carga recién al abrir la vista (visor común: modulos/visor3d.js).
+import { abrirVisor, cerrarVisor } from "./visor3d.js";
 
 // ámbar de herrería (25-nov, Max): marco más oscuro, travesaños en el color del oficio, barrotes y chapa más claros
 const COLOR = { MARCO: "#a65507", TRAVESANO: "#d97706", BARRA: "#f4b54f", CHAPA: "#f7deb0" };
@@ -119,173 +120,59 @@ function eje(pts) {
   return { centro: [cx + m * dir[0], cy + m * dir[1]], dir, largo: t1 - t0 };
 }
 
-let abierta = null;
-
 /**
- * Abre la vista 3D a pantalla completa. R = resultado del ítem (calc.resultados[0]); perfiles = {nombre: Perfil};
- * opts.piso = true para dibujar el piso (portones; la reja de ventana va en la pared).
+ * Abre la vista 3D a pantalla completa (visor común: modulos/visor3d.js). R = resultado del ítem (calc.resultados[0]);
+ * perfiles = {nombre: Perfil}; opts.piso = true para dibujar el piso (portones; la reja de ventana va en la pared).
  */
 export async function abrir3D(R, perfiles, { espChapa = 1.5, piso = false, pasantes = false, travAtras = false,
   relleno = "", cruce = "cruzadas", chapaTrav = "atras" } = {}) {
-  if (abierta) return;
-  const capa = document.createElement("div");
-  capa.className = "p-completa p-3d";
-  capa.innerHTML = `<div class="p-completa-barra">
-      <button type="button" class="p-3d-frente">Frente</button><button type="button" class="p-3d-girar">Girar</button>
-      <button type="button" class="p-c-cerrar">Cerrar</button></div>
-    <div class="p-3d-lienzo"><p class="nota p-3d-cargando">Cargando la vista 3D…</p></div>
-    <p class="p-3d-aviso" hidden></p>
-    <p class="p-3d-ayuda">Un dedo gira · dos dedos acercan y mueven</p>`;
-  document.body.append(capa);
-  document.body.classList.add("sin-scroll");
-  const est = { capa, cerrar: null };
-  abierta = est;
-  const cerrar = () => {
-    est.cerrar?.();
-    capa.remove();
-    document.body.classList.remove("sin-scroll");
-    abierta = null;
-  };
-  capa.querySelector(".p-c-cerrar").addEventListener("click", cerrar);
-  capa.addEventListener("keydown", (e) => { if (e.key === "Escape") cerrar(); });
-  capa.querySelector(".p-c-cerrar").focus();
-  const lienzo = capa.querySelector(".p-3d-lienzo");
-
-  let T;
-  try { T = await import("../vendor/three.min.js"); } catch {
-    lienzo.innerHTML = `<p class="error-txt">No se pudo cargar la vista 3D. Abrí la página con internet una vez para que quede guardada.</p>`;
-    return;
-  }
-  if (abierta !== est) return;                            // la cerraron mientras cargaba
-  let ren;
-  try { ren = new T.WebGLRenderer({ antialias: true }); } catch {
-    lienzo.innerHTML = `<p class="error-txt">Este equipo no puede mostrar 3D (WebGL).</p>`;
-    return;
-  }
-  lienzo.innerHTML = "";
-  ren.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-  ren.outputColorSpace = T.SRGBColorSpace;
-  lienzo.append(ren.domElement);
-
-  const escena = new T.Scene();
-  escena.background = new T.Color("#eef1f4");
-  escena.add(new T.HemisphereLight("#ffffff", "#b9a88f", 2.4));
-  const sol = new T.DirectionalLight("#ffffff", 2.2);
-  sol.position.set(0.6, 1, 0.9);
-  escena.add(sol);
-  const sol2 = new T.DirectionalLight("#ffffff", 0.5);
-  sol2.position.set(-0.8, 0.3, -0.7);
-  escena.add(sol2);
-
-  const grupo = new T.Group(), basura = [];
-  const mats = {}, lineas = new T.LineBasicMaterial({ color: BORDE });
-  basura.push(lineas);
-  const material = (c) => {
-    if (!mats[c]) {
-      mats[c] = new T.MeshStandardMaterial({ color: COLOR[c] || COLOR.BARRA, metalness: 0.1, roughness: 0.6,
-        polygonOffset: true, polygonOffsetFactor: c === "BARRA" ? 2 : c === "CHAPA" ? 3 : c === "TRAVESANO" ? 1 : 0,
-        polygonOffsetUnits: 1 });
-      basura.push(mats[c]);
+  await abrirVisor({ piso, margen: 200, armar: (T, grupo, basura) => {
+    const mats = {}, lineas = new T.LineBasicMaterial({ color: BORDE });
+    basura.push(lineas);
+    const material = (c) => {
+      if (!mats[c]) {
+        mats[c] = new T.MeshStandardMaterial({ color: COLOR[c] || COLOR.BARRA, metalness: 0.1, roughness: 0.6,
+          polygonOffset: true, polygonOffsetFactor: c === "BARRA" ? 2 : c === "CHAPA" ? 3 : c === "TRAVESANO" ? 1 : 0,
+          polygonOffsetUnits: 1 });
+        basura.push(mats[c]);
+      }
+      return mats[c];
+    };
+    const agregar = (geo, c) => {
+      const m = new T.Mesh(geo, material(c));
+      const ed = new T.EdgesGeometry(geo, 30);
+      basura.push(geo, ed);
+      grupo.add(m, new T.LineSegments(ed, lineas));
+    };
+    const { piezas: lista, n, aviso } = piezas3D(R, perfiles, { espChapa, pasantes, travAtras, relleno, cruce, chapaTrav });
+    const Y = new T.Vector3(0, 1, 0);
+    for (const pz of lista) {
+      if (pz.tipo === "extruir") {
+        const sh = new T.Shape();
+        sh.moveTo(pz.pts[0][0], pz.pts[0][1]);
+        for (const [x, y] of pz.pts.slice(1)) sh.lineTo(x, y);
+        sh.closePath();
+        const geo = new T.ExtrudeGeometry(sh, { depth: pz.z1 - pz.z0, bevelEnabled: false });
+        geo.translate(0, 0, pz.z0);
+        agregar(geo, pz.capa);
+      } else {
+        const geo = new T.CylinderGeometry(pz.d / 2, pz.d / 2, pz.largo, 24);
+        geo.applyQuaternion(new T.Quaternion().setFromUnitVectors(Y, new T.Vector3(pz.dir[0], pz.dir[1], 0)));
+        geo.translate(pz.centro[0], pz.centro[1], pz.z);
+        agregar(geo, pz.capa);
+      }
     }
-    return mats[c];
-  };
-  const agregar = (geo, c) => {
-    const m = new T.Mesh(geo, material(c));
-    const ed = new T.EdgesGeometry(geo, 30);
-    basura.push(geo, ed);
-    grupo.add(m, new T.LineSegments(ed, lineas));
-  };
-  const { piezas: lista, n, aviso } = piezas3D(R, perfiles, { espChapa, pasantes, travAtras, relleno, cruce, chapaTrav });
-  if (aviso) { const a = capa.querySelector(".p-3d-aviso"); a.textContent = `⚠ ${aviso}`; a.hidden = false; }
-  const Y = new T.Vector3(0, 1, 0);
-  for (const pz of lista) {
-    if (pz.tipo === "extruir") {
-      const sh = new T.Shape();
-      sh.moveTo(pz.pts[0][0], pz.pts[0][1]);
-      for (const [x, y] of pz.pts.slice(1)) sh.lineTo(x, y);
-      sh.closePath();
-      const geo = new T.ExtrudeGeometry(sh, { depth: pz.z1 - pz.z0, bevelEnabled: false });
-      geo.translate(0, 0, pz.z0);
-      agregar(geo, pz.capa);
-    } else {
-      const geo = new T.CylinderGeometry(pz.d / 2, pz.d / 2, pz.largo, 24);
-      geo.applyQuaternion(new T.Quaternion().setFromUnitVectors(Y, new T.Vector3(pz.dir[0], pz.dir[1], 0)));
-      geo.translate(pz.centro[0], pz.centro[1], pz.z);
-      agregar(geo, pz.capa);
+    const planos = {};                                     // [z de atrás, z de adelante] por capa (para las pruebas)
+    for (const pz of lista) {
+      const [a0, a1] = pz.tipo === "cilindro" ? [pz.z - pz.d / 2, pz.z + pz.d / 2] : [pz.z0, pz.z1];
+      const p = planos[pz.capa] ||= [a0, a1];
+      p[0] = Math.min(p[0], a0); p[1] = Math.max(p[1], a1);
     }
-  }
-  escena.add(grupo);
-  const caja = new T.Box3().setFromObject(grupo);
-  const centro = caja.getCenter(new T.Vector3()), tam = caja.getSize(new T.Vector3());
-  if (piso) {
-    const ancho = tam.x + 1200, fondo = Math.max(1200, tam.x * 0.6);
-    const geo = new T.BoxGeometry(ancho, 20, fondo);
-    geo.translate(centro.x, -10, 0);
-    const m = new T.MeshStandardMaterial({ color: "#dcd6cb", roughness: 0.95, metalness: 0 });
-    basura.push(geo, m);
-    escena.add(new T.Mesh(geo, m));
-  }
-  capa.dataset.piezas = String(n);                         // piezas del plano (para las pruebas)
-  capa.dataset.cuerpos = String(lista.length);
-  const planos = {};                                       // [z de atrás, z de adelante] por capa (para las pruebas)
-  for (const pz of lista) {
-    const [a0, a1] = pz.tipo === "cilindro" ? [pz.z - pz.d / 2, pz.z + pz.d / 2] : [pz.z0, pz.z1];
-    const p = planos[pz.capa] ||= [a0, a1];
-    p[0] = Math.min(p[0], a0); p[1] = Math.max(p[1], a1);
-  }
-  capa.dataset.planos = JSON.stringify(planos);
-
-  const cam = new T.PerspectiveCamera(35, 1, 10, 200000);
-  const ctl = new (T.OrbitControls)(cam, ren.domElement);
-  ctl.enableDamping = true;
-  ctl.dampingFactor = 0.12;
-  ctl.target.copy(centro);
-  ctl.touches = { ONE: T.TOUCH.ROTATE, TWO: T.TOUCH.DOLLY_PAN };
-  const radio = Math.max(tam.x, tam.y) * 0.5 + 200;
-  if (piso) ctl.maxPolarAngle = Math.PI / 2 - 0.03;       // la cámara no baja del piso
-  ctl.minDistance = radio * 0.25;
-  ctl.maxDistance = radio * 8;
-  function vista(azimut, altura) {
-    const dist = radio / Math.tan((cam.fov * Math.PI) / 360) * 1.05 * Math.max(1, (cam.aspect < 1 ? 1 / cam.aspect : 1));
-    const a = (azimut * Math.PI) / 180, h = (altura * Math.PI) / 180;
-    cam.position.set(centro.x + dist * Math.sin(a) * Math.cos(h), centro.y + dist * Math.sin(h), dist * Math.cos(a) * Math.cos(h));
-    ctl.target.copy(centro);
-    ctl.update();
-  }
-  function medir() {
-    const w = lienzo.clientWidth || 1, h = lienzo.clientHeight || 1;
-    ren.setSize(w, h, false);
-    ren.domElement.style.width = "100%";
-    ren.domElement.style.height = "100%";
-    cam.aspect = w / h;
-    cam.updateProjectionMatrix();
-  }
-  medir();
-  vista(-30, 15);
-  const obs = new ResizeObserver(medir);
-  obs.observe(lienzo);
-  let girando = false, vivo = true;
-  capa.querySelector(".p-3d-frente").addEventListener("click", () => { girando = false; vista(0, 0); });
-  capa.querySelector(".p-3d-girar").addEventListener("click", () => { girando = !girando; });
-  ren.domElement.addEventListener("pointerdown", () => { girando = false; });
-  const cuadro = () => {
-    if (!vivo) return;
-    if (girando) { ctl.autoRotate = true; ctl.autoRotateSpeed = 2; } else ctl.autoRotate = false;
-    ctl.update();
-    ren.render(escena, cam);
-    requestAnimationFrame(cuadro);
-  };
-  requestAnimationFrame(cuadro);
-  est.cerrar = () => {
-    vivo = false;
-    obs.disconnect();
-    ctl.dispose();
-    for (const b of basura) b.dispose();
-    ren.dispose();
-    ren.forceContextLoss?.();
-  };
+    // piezas del plano y cuerpos dibujados (para las pruebas)
+    return { aviso, datos: { piezas: String(n), cuerpos: String(lista.length), planos: JSON.stringify(planos) } };
+  } });
 }
 
 export function cerrar3D() {
-  abierta?.capa.querySelector(".p-c-cerrar")?.click();
+  cerrarVisor();
 }
