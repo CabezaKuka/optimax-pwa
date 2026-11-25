@@ -5,6 +5,7 @@ import { optimizarRapido, leerTexto, sumarFilas, textoCorte } from "../guillotin
 import { recortar, numero, med, miles } from "../barras/motor.js";
 import { cargarPro } from "../licencia.js";
 import { ponerContexto } from "../hoja-pro.js";
+import { abrirSalida, activarBoton, cerrarSalida } from "../salida.js";
 
 const CLAVE = "optimax-guillotina";
 const DEMO_PIEZAS = 5;
@@ -16,7 +17,7 @@ const PALETA = ["#a6ceff", "#ffd699", "#b2e8ba", "#ffb6c1", "#d6c4ff", "#fff499"
   "#c9e59a", "#e0c3e8"];
 
 const $ = (s) => document.querySelector(s);
-let raiz, pro, est, reloj, turno = 0;
+let raiz, pro, est, reloj, turno = 0, ultimo = null, salidaPdf = null;
 
 function cargarMemoria() {
   try { return { ...INICIAL, ...(JSON.parse(localStorage.getItem(CLAVE)) || {}) }; } catch { return { ...INICIAL }; }
@@ -30,6 +31,7 @@ export async function montar(cont) {
   est = cargarMemoria();
   est.filas = est.filas.map(([a, l, c]) => [String(a), String(l), Math.max(1, Math.trunc(c) || 1)]);
   pro = await cargarPro("guillotina/optimizar.js");
+  salidaPdf = pro ? await cargarPro("salidas/listas.js") : null;
   ponerContexto("Guillotina y melamina", "");
   cont.innerHTML = PLANTILLA;
   for (const k of ["largo", "ancho", "corte", "refilado", "max", "precio"]) $(`#g-${k}`).value = est[k];
@@ -39,10 +41,26 @@ export async function montar(cont) {
   armarEventos();
   dibujarFilas();
   calcular();
+  if (salidaPdf) activarBoton($("#g-pdf"), "Imprimir o guardar en PDF", guardarPdf);
+}
+
+function guardarPdf() {
+  if (!ultimo) return;
+  let precio = 0;
+  try { precio = String(est.precio).trim() === "" ? 0 : numero(est.precio); } catch { precio = 0; }
+  const r = ultimo;
+  abrirSalida({
+    titulo: "Plan de cortes en PDF",
+    archivo: "Guillotina - plan de cortes.pdf",
+    describir: () => `Hoja A4 apaisada por plancha (${r.n_planchas}), con los cortes numerados en orden y la lista de cortes; al final el control de piezas` +
+      (precio > 0 ? " con el precio de cada una." : "."),
+    armar: () => salidaPdf.pdfGuillotina(r, { precioPlancha: precio > 0 ? precio : null, costos: precio > 0 ? pro.costear(r, precio, 0, est.reparto) : null }),
+  });
 }
 
 export function desmontar() {
   clearTimeout(reloj);
+  cerrarSalida();
   turno++;                                         // cancela un cálculo PRO en marcha
   $("#hoja-pegar")?.close?.();
 }
@@ -89,7 +107,7 @@ const PLANTILLA = `
       <div id="g-costo"></div>
     </div>
     <div class="acciones">
-      <button type="button" class="btn-bloq" data-abre-pro="pdf"><span class="candado" aria-hidden="true"></span>Imprimir o guardar en PDF <span class="tag">PRO</span></button>
+      <button type="button" class="btn-bloq" id="g-pdf" data-abre-pro="pdf"><span class="candado" aria-hidden="true"></span>Imprimir o guardar en PDF <span class="tag">PRO</span></button>
     </div>
     <p class="verificar">Verificá todas las medidas antes de cortar.</p>
   </section>
@@ -231,6 +249,7 @@ async function calcular() {
     $("#g-calc").hidden = true;
     err.textContent = e.message;
     err.hidden = false;
+    ultimo = null;
     $("#g-resultado").hidden = true;
     return;
   }
@@ -240,6 +259,7 @@ async function calcular() {
 
 // ------------------------------------------------------------------ resultado
 function mostrar(r) {
+  ultimo = r;
   const n = r.n_planchas;
   const [rw, rh] = r.retazo;
   $("#g-resumen").innerHTML =

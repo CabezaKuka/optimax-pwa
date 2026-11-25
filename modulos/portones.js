@@ -8,6 +8,7 @@ import { optimizarRapido, numero, med, miles } from "../barras/motor.js";
 import { corto } from "../geo/base.js";
 import { cargarPro, urlPro } from "../licencia.js";
 import { ponerContexto, abrirPro } from "../hoja-pro.js";
+import { abrirSalida, activarBoton, cerrarSalida } from "../salida.js";
 
 const CLAVE = "optimax-portones";
 // perfiles de ejemplo, sin precio (cada uno carga los suyos en «Perfiles»)
@@ -42,7 +43,7 @@ const CAMPOS = {
 const $ = (s) => raiz.querySelector(s);
 const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const n1 = (v) => miles(v, 1, true);
-let raiz, est, observador = null, pro = false, optPro = null, rutaOpt = null, reloj, calc = null, sel = null, avisoDemo = "";
+let raiz, est, observador = null, salidaPdf = null, pro = false, optPro = null, rutaOpt = null, reloj, calc = null, sel = null, avisoDemo = "";
 let trabajador = null, ocupado = false, pedido = 0, alVolver = null, completa = null, zoom = 1;
 const cache = new Map();                 // resultados del optimizador completo (como portones._MEMO)
 
@@ -67,6 +68,7 @@ export async function montar(cont) {
     P.registrarTipos(tipos.TIPOS_PORTON);
     pro = tipos;
     optPro = await cargarPro("barras/optimizar.js");
+    salidaPdf = await cargarPro("salidas/portones.js");
     rutaOpt = urlPro("barras/optimizar.js");
   }
   if (!pro && !P.demoPermite(est.item)) Object.assign(est.item, P.DEMO_MUESTRA);   // la DEMO arranca en la reja
@@ -77,10 +79,24 @@ export async function montar(cont) {
   armarEventos();
   ponerValores();
   calcular();
+  if (salidaPdf) activarBoton($("#p-pdf"), "Imprimir o guardar en PDF", guardarPdf);
+}
+
+function guardarPdf() {
+  if (!calc || !calc.resultados[0]) return;
+  const c = calc;
+  abrirSalida({
+    titulo: "Lista de corte en PDF",
+    archivo: "Rejas y portones - lista de corte.pdf",
+    describir: () => (ocupado ? "Las barras todavía se están optimizando: esperá un momento para que el PDF salga con las definitivas. " : "") +
+      "Hojas A4 apaisadas: lista de corte con marcas, ángulos y croquis, las barras de cada perfil y la elevación acotada.",
+    armar: () => salidaPdf.pdfPortones(c),
+  });
 }
 
 export function desmontar() {
   clearTimeout(reloj);
+  cerrarSalida();
   observador?.disconnect();
   pedido++;
   if (trabajador) { trabajador.terminate(); trabajador = null; ocupado = false; }
@@ -161,7 +177,7 @@ const PLANTILLA = `
       <div id="p-costo"></div>
     </div>
     <div class="acciones">
-      <button type="button" class="btn-bloq" data-abre-pro="pdf"><span class="candado" aria-hidden="true"></span>Imprimir o guardar en PDF <span class="tag">PRO</span></button>
+      <button type="button" class="btn-bloq" id="p-pdf" data-abre-pro="pdf"><span class="candado" aria-hidden="true"></span>Imprimir o guardar en PDF <span class="tag">PRO</span></button>
     </div>
     <p class="verificar">Verificá todas las medidas antes de cortar o fabricar.</p>
   </section>

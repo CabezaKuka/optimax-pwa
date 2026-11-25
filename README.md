@@ -21,6 +21,7 @@ guillotina/motor.js           cortes de guillotina de la DEMO (144 combinaciones
 modulos/portones.js           módulo Rejas y portones (tipo, medidas, perfiles, relleno, elevación con marcas y cotas, lista de corte, barras)
 portones/motor.js             elevación, piezas con su corte, marcas, barras, peso y cotas (portones.py); los portones y los costos son PRO
 barras/trabajador.js          Worker del optimizador completo de barras (PRO), para no trabar la pantalla
+salida.js                     hoja «Imprimir / guardar en PDF» (opciones, páginas, Descargar / Compartir); el PDF lo arma el código PRO
 licencia.js                   esPro() y cargarPro(): la licencia se conecta al final (Railway)
 hoja-pro.js, iconos.js        hoja de compra; íconos de los módulos
 vista.js                      dibujo de la plancha (SVG), cotas, zoom y desplazamiento

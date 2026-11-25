@@ -7,6 +7,7 @@ import { medidas } from "../geo/medidas.js";
 import { Vista } from "../vista.js";
 import { esPro, cargarPro } from "../licencia.js";
 import { ponerContexto, abrirPro } from "../hoja-pro.js";
+import { abrirSalida, cerrarSalida } from "../salida.js";
 
 const CLAVE_MEMORIA = "optimax-pwa";
 const ESPESOR_DEF = "2";
@@ -34,7 +35,7 @@ function cargarMemoria() {
   try { return JSON.parse(localStorage.getItem(CLAVE_MEMORIA)) || {}; } catch { return {}; }
 }
 
-let raiz, vista, memoria, figs, fig, crudo, espesor, reloj;
+let raiz, vista, memoria, figs, fig, crudo, espesor, reloj, salida = null, ultimas = null;
 let limpiar = [];
 
 export async function montar(cont) {
@@ -45,6 +46,7 @@ export async function montar(cont) {
   figs = new Map(DEMO.map((g) => [g.id, g]));
   const pro = await cargarPro("chapa/figuras.js");
   for (const g of pro?.FIGURAS || []) figs.set(g.id, g);
+  salida = await cargarPro("salidas/chapa.js");           // imprimir a escala (PRO)
   fig = figs.get(memoria.figura) || DEMO[0];
   espesor = memoria.espesor ?? ESPESOR_DEF;
 
@@ -53,6 +55,7 @@ export async function montar(cont) {
   armarSelector();
   armarFormulario();
   armarPlancha();
+  armarImprimir();
   ponerContexto(fig.nombre, figurasProHTML());
   calcular({ ajustar: true });
 }
@@ -63,6 +66,7 @@ export function desmontar() {
   limpiar.forEach((f) => f());
   limpiar = [];
   $("#hoja-figuras")?.close?.();
+  cerrarSalida();
 }
 
 function guardarMemoria() {
@@ -101,7 +105,7 @@ const PLANTILLA = `
     <ul class="chapas" id="chapas" aria-live="polite"></ul>
 
     <div class="acciones">
-      <button type="button" class="btn-bloq" data-abre-pro="imprimir"><span class="candado" aria-hidden="true"></span>Imprimir a escala <span class="tag">PRO</span></button>
+      <button type="button" class="btn-bloq" id="btn-imprimir" data-abre-pro="imprimir"><span class="candado" aria-hidden="true"></span>Imprimir a escala <span class="tag">PRO</span></button>
     </div>
 
     <p class="verificar">Verificá todas las medidas antes de cortar o fabricar.</p>
@@ -220,16 +224,18 @@ function cambiar(clave, valor) {
 // ------------------------------------------------------------------ cálculo
 function calcular({ ajustar = false } = {}) {
   marcarError(null);
-  let piezas, t;
+  let piezas, t, v;
   try {
-    const v = leer(fig, crudo);
+    v = leer(fig, crudo);
     try { t = leerNum(espesor); } catch { throw new Error("Espesor de la chapa: valor inválido."); }
     if (!(t > 0)) throw new Error("El espesor debe ser mayor que 0.");
     piezas = fig.generar(v, t);
   } catch (e) {
+    ultimas = null;
     mostrarError(e.message);
     return;
   }
+  ultimas = { piezas, t, v };
   memoria.figura = fig.id;
   memoria.valores[fig.id] = { ...crudo };
   memoria.espesor = espesor;
@@ -291,6 +297,43 @@ function elegir(g) {
   armarFormulario();
   ponerContexto(fig.nombre, figurasProHTML());
   calcular({ ajustar: true });
+}
+
+// ------------------------------------------------------------------ imprimir a escala (PRO)
+function armarImprimir() {
+  if (!salida) return;                                     // DEMO: el botón abre la hoja de compra
+  const b = $("#btn-imprimir");
+  b.removeAttribute("data-abre-pro");
+  b.classList.replace("btn-bloq", "btn-accion");
+  b.innerHTML = "Imprimir a escala 1:1";
+  b.addEventListener("click", imprimir);
+}
+
+/** «400 mm», «180°», «Sí»: el valor de un parámetro como en el plano de la PC (plano.datos_origen). */
+function valorTexto(p, val) {
+  if (typeof val !== "number") return String(val);
+  const u = p.unidad || "";
+  return corto(val, 2) + (!u ? "" : u === "°" ? "°" : ` ${u}`);
+}
+
+function imprimir() {
+  if (!ultimas) return;                                    // con error en las medidas no hay plantilla
+  const { piezas, t, v } = ultimas;
+  const info = { figura: fig.nombre, espesor: t, valores: fig.params.map((p) => [p.etiqueta, valorTexto(p, v[p.clave])]) };
+  abrirSalida({
+    titulo: "Imprimir a escala 1:1",
+    archivo: `${nombreCorto(fig.id)} - plantilla.pdf`,
+    opciones: salida.MODOS,
+    inicial: "hojas",
+    describir: (modo) => {
+      const n = salida.contarPaginas(piezas, modo);
+      return modo === "una"
+        ? `${n} páginas: una de datos y cada chapa entera en una hoja de su tamaño. Para una imprenta o un plotter.`
+        : `${n} páginas: una de datos, un mapa por chapa grande y las hojas A4 de la plantilla, con solape y cruces para unirlas.`;
+    },
+    armar: (modo) => salida.pdfPlantilla(info, piezas, modo),
+    nota: "Imprimí al 100 % («Tamaño real»), sin «Ajustar a la página». Antes de trazar, medí el cuadrado de control: tiene que dar 100 mm.",
+  });
 }
 
 // ------------------------------------------------------------------ plancha: zoom y pantalla completa

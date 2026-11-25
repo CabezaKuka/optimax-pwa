@@ -4,6 +4,7 @@
 import { optimizarRapido, leerTexto, sumarFilas, recortar, numero, med, miles } from "../barras/motor.js";
 import { cargarPro } from "../licencia.js";
 import { ponerContexto } from "../hoja-pro.js";
+import { abrirSalida, activarBoton, cerrarSalida } from "../salida.js";
 
 const CLAVE = "optimax-barras";
 const DEMO_PIEZAS = 5;
@@ -13,7 +14,7 @@ const PALETA = ["#a6ceff", "#ffd699", "#b2e8ba", "#ffb6c1", "#d6c4ff", "#fff499"
   "#c9e59a", "#e0c3e8"];
 
 const $ = (s) => document.querySelector(s);
-let raiz, pro, est, reloj, ultimo = null;
+let raiz, pro, est, reloj, ultimo = null, salidaPdf = null;
 
 function cargarMemoria() {
   try { return { ...INICIAL, ...(JSON.parse(localStorage.getItem(CLAVE)) || {}) }; } catch { return { ...INICIAL }; }
@@ -27,6 +28,7 @@ export async function montar(cont) {
   est = cargarMemoria();
   est.filas = est.filas.map(([l, c]) => [String(l), Math.max(1, Math.trunc(c) || 1)]);
   pro = await cargarPro("barras/optimizar.js");
+  salidaPdf = pro ? await cargarPro("salidas/listas.js") : null;
   ponerContexto("Barras y tubos", "");
   cont.innerHTML = PLANTILLA;
   $("#b-largo").value = est.largo;
@@ -37,10 +39,26 @@ export async function montar(cont) {
   armarEventos();
   dibujarFilas();
   calcular();
+  if (salidaPdf) activarBoton($("#b-pdf"), "Imprimir o guardar en PDF", guardarPdf);
+}
+
+function guardarPdf() {
+  if (!ultimo) return;
+  let precio = 0;
+  try { precio = String(est.precio).trim() === "" ? 0 : numero(est.precio); } catch { precio = 0; }
+  const r = ultimo;
+  abrirSalida({
+    titulo: "Lista de corte en PDF",
+    archivo: "Barras - lista de corte.pdf",
+    describir: () => "Hoja A4 apaisada: cada barra dibujada con la medida de sus piezas y el control de las piezas pedidas" +
+      (precio > 0 ? ", con el precio de cada una." : "."),
+    armar: () => salidaPdf.pdfBarras(r, { precioBarra: precio > 0 ? precio : null, costos: precio > 0 ? pro.costear(r, precio, 0, est.reparto) : null }),
+  });
 }
 
 export function desmontar() {
   clearTimeout(reloj);
+  cerrarSalida();
   $("#hoja-pegar")?.close?.();
 }
 
@@ -82,7 +100,7 @@ const PLANTILLA = `
       <div id="b-costo"></div>
     </div>
     <div class="acciones">
-      <button type="button" class="btn-bloq" data-abre-pro="pdf"><span class="candado" aria-hidden="true"></span>Imprimir o guardar en PDF <span class="tag">PRO</span></button>
+      <button type="button" class="btn-bloq" id="b-pdf" data-abre-pro="pdf"><span class="candado" aria-hidden="true"></span>Imprimir o guardar en PDF <span class="tag">PRO</span></button>
     </div>
     <p class="verificar">Verificá todas las medidas antes de cortar o fabricar.</p>
   </section>

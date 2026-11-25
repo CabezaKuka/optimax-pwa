@@ -503,6 +503,25 @@ body.sin-scroll { overflow: hidden; }
 @media (min-width: 600px) { .hoja-pro.hoja-perfiles { width: 560px; } }
 @media (max-width: 380px) { .p-tipos, .p-rellenos { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 
+/* ------------------------------------------------------------ imprimir / guardar en PDF (PRO) */
+.btn-accion {
+  flex: 1 1 220px; display: flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 48px; padding: 0 12px; border: 0; border-radius: 6px; background: var(--tinta); color: #fff;
+  font-weight: 700; font-size: 16px;
+}
+.btn-accion:hover { background: #2c3540; }
+.s-opciones { display: grid; gap: 6px; margin: 4px 0 10px; }
+.s-op {
+  display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 6px 12px;
+  border: 1px solid #c3cbd4; border-radius: 8px; background: var(--hoja); font-size: 15px;
+}
+.s-op input { width: 20px; height: 20px; flex: none; }
+.s-op:has(input:checked) { border-color: var(--tinta); box-shadow: inset 0 0 0 1px var(--tinta); font-weight: 600; }
+.s-desc { font-size: 15px; color: var(--gris); }
+.s-ok { font-size: 16px; }
+.s-botones { display: flex; gap: 8px; }
+.s-botones button { flex: 1; margin-top: 0; }
+
 /* ------------------------------------------------------------ pie */
 .pie {
   display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px;

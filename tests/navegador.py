@@ -29,6 +29,29 @@ def control(cond, que):
         print(f"MAL  {que}")
 
 
+def bajar_pdf(pg, boton, que, opcion=None, cap=None):
+    """Toca el botón de PDF (PRO), arma el PDF y lo descarga. Devuelve la cantidad de páginas (o 0 si falló)."""
+    pg.click(boton)
+    pg.wait_for_selector("#hoja-salida[open]")
+    if opcion:
+        pg.check(f"#hoja-salida input[value={opcion}]")
+    pg.click("#s-armar")
+    pg.wait_for_selector("#s-listo", state="visible", timeout=30000)
+    with pg.expect_download() as d:
+        pg.click("#s-descargar")
+    ruta = d.value.path()
+    with open(ruta, "rb") as fh:
+        datos = fh.read()
+    valido = datos.startswith(b"%PDF-1.4") and subprocess.run(["qpdf", "--check", ruta], capture_output=True).returncode == 0
+    paginas = int(pg.get_attribute("#hoja-salida", "data-paginas") or 0)
+    control(valido and paginas > 0, f"{que}: PDF descargado y válido ({paginas} páginas, {d.value.suggested_filename})")
+    if cap:
+        import shutil
+        shutil.copy(ruta, os.path.join(cap, d.value.suggested_filename.replace(" ", "_")))
+    pg.keyboard.press("Escape")
+    return paginas
+
+
 def completa(pg):
     return pg.evaluate("!!document.querySelector('.plancha.completa')")
 
@@ -112,6 +135,10 @@ def celular(b, base, cap):
     pg.goto(base + "#chapa")
     pg.wait_for_selector("#chapas li")
     control(True, "entrar directo a #chapa")
+    pg.click("#btn-imprimir")
+    pg.wait_for_selector("#hoja-pro[open]")
+    control("Imprimir la plantilla" in pg.inner_text("#pro-motivo"), "chapa DEMO: imprimir a escala → hoja de compra")
+    pg.keyboard.press("Escape")
     barras_demo(pg, base, cap)
     guillotina_demo(pg, base, cap)
     portones_demo(pg, base, cap)
@@ -266,6 +293,10 @@ def portones_demo(pg, base, cap):
     pg.click("#hoja-perfiles button[value=listo]")
     pg.wait_for_timeout(500)
     control(pg.is_hidden("#p-error") and pg.locator("#p-lista li").count() >= 3, "perfiles: corregir las medidas recalcula")
+    pg.click("#p-pdf")
+    pg.wait_for_selector("#hoja-pro[open]")
+    control("PDF" in pg.inner_text("#pro-motivo"), "portones DEMO: PDF → hoja de compra")
+    pg.keyboard.press("Escape")
     control(pg.locator("#p-perfil_marco option").count() == 9, "perfiles: el perfil sin medidas no se ofrece")
     pg.click("#migas .volver")
     pg.wait_for_selector(".inicio")
@@ -289,7 +320,8 @@ def pc(b, base, cap):
 
 
 def pro(b, base, cap):
-    ctx = b.new_context(viewport={"width": 390, "height": 844}, device_scale_factor=2, is_mobile=True, has_touch=True)
+    ctx = b.new_context(viewport={"width": 390, "height": 844}, device_scale_factor=2, is_mobile=True, has_touch=True,
+                        accept_downloads=True)
     pg = ctx.new_page()
     errs = []
     pg.on("pageerror", lambda e: errs.append(str(e)))
@@ -315,6 +347,15 @@ def pro(b, base, cap):
         control(n >= 1 and trazos > 50 and pg.is_hidden("#error"), f"PRO: {fid} se calcula y se dibuja")
         if cap:
             pg.locator(".plancha").screenshot(path=f"{cap}/pro_{fid}.png")
+    # imprimir a escala (la última figura: helicoide): hojas A4 y una sola hoja
+    control(pg.is_hidden("#btn-imprimir .candado"), "PRO: imprimir a escala sin candado")
+    pg.click("#btn-imprimir")
+    pg.wait_for_selector("#hoja-salida[open]")
+    control("páginas" in pg.inner_text("#s-desc"), "PRO: imprimir dice cuántas páginas salen")
+    pg.keyboard.press("Escape")
+    n1 = bajar_pdf(pg, "#btn-imprimir", "PRO chapa: plantilla en hojas A4", "hojas", cap)
+    n2 = bajar_pdf(pg, "#btn-imprimir", "PRO chapa: plantilla en una hoja", "una", cap)
+    control(n1 > n2 >= 2, f"PRO chapa: en hojas A4 salen más páginas que en una sola hoja ({n1} / {n2})")
     # barras con PRO: sin tope, optimizador completo y precio por pieza
     pg.evaluate("localStorage.setItem('optimax-barras', JSON.stringify({largo:'6000',corte:'3',filas:[['1200',8],['800',12],['450',20]],precio:'',reparto:false}))")
     pg.goto(base + "#barras")
@@ -327,6 +368,7 @@ def pro(b, base, cap):
     control(pg.locator("#b-costo tbody tr").count() == 3, "barras PRO: precio de cada pieza")
     if cap:
         pg.screenshot(path=f"{cap}/pro_barras.png", full_page=True)
+    bajar_pdf(pg, "#b-pdf", "PRO barras: lista de corte", None, cap)
     # guillotina con PRO: búsqueda completa sin trabar, precio por pieza
     pg.evaluate("localStorage.setItem('optimax-guillotina', JSON.stringify({largo:'2440',ancho:'1220',corte:'3',refilado:'5',max:'0',rotar:true,filas:[['720','560',6],['350','560',8],['720','300',4],['400','400',5]],precio:'',reparto:false}))")
     pg.goto(base + "#guillotina")
@@ -340,6 +382,7 @@ def pro(b, base, cap):
     control(pg.locator("#g-costo tbody tr").count() == 4, "guillotina PRO: precio de cada pieza")
     if cap:
         pg.screenshot(path=f"{cap}/pro_guillotina.png", full_page=True)
+    bajar_pdf(pg, "#g-pdf", "PRO guillotina: plan de cortes", None, cap)
     # portones con PRO: batiente de 2 hojas, barras con el optimizador completo (Worker) y costos
     pg.evaluate("localStorage.removeItem('optimax-portones')")
     pg.goto(base + "#portones")
@@ -365,6 +408,7 @@ def pro(b, base, cap):
     pg.keyboard.press("Escape")
     if cap:
         pg.screenshot(path=f"{cap}/pro_portones.png", full_page=True)
+    bajar_pdf(pg, "#p-pdf", "PRO portones: lista de corte", None, cap)
     pg.goto(base + "?pro=0")
     pg.wait_for_selector(".inicio")
     control(pg.is_visible(".btn-pro"), "?pro=0: vuelve la DEMO")
