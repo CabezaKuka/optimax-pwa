@@ -1,8 +1,10 @@
 // Service worker: guarda la app para que ande sin internet. Al cambiar cualquier archivo, subir VERSION
 // (si no, los que ya la tienen siguen viendo la vieja hasta que se borre la caché).
-const VERSION = "optimax-pwa-1";
+const VERSION = "optimax-pwa-9";
 const ARCHIVOS = [
   "./", "index.html", "app.css", "app.js", "vista.js", "manifest.webmanifest",
+  "modulos.js", "inicio.js", "iconos.js", "licencia.js", "licencia-config.js", "vendor/ed25519.js", "hoja-pro.js", "salida.js", "modulos/chapa.js", "modulos/barras.js", "barras/motor.js",
+  "modulos/guillotina.js", "guillotina/motor.js", "modulos/portones.js", "portones/motor.js", "barras/trabajador.js",
   "geo/base.js", "geo/index.js", "geo/medidas.js",
   "geo/t_cil_cil.js", "geo/codo_sectores.js", "geo/tronco_cono.js", "geo/tronco_piramide.js",
   "fuentes/barlow-latin-400-normal.woff2", "fuentes/barlow-latin-600-normal.woff2",
@@ -15,7 +17,10 @@ const ARCHIVOS = [
 ];
 
 self.addEventListener("install", (e) => {
-  e.waitUntil(caches.open(VERSION).then((c) => c.addAll(ARCHIVOS)).then(() => self.skipWaiting()));
+  // pro.bin (código PRO cifrado) aparte: si una versión no lo trae, la app igual se instala
+  e.waitUntil(caches.open(VERSION)
+    .then((c) => c.addAll(ARCHIVOS).then(() => c.add("pro.bin").catch(() => {})))
+    .then(() => self.skipWaiting()));
 });
 
 self.addEventListener("activate", (e) => {
@@ -24,7 +29,8 @@ self.addEventListener("activate", (e) => {
     .then(() => self.clients.claim()));
 });
 
-// primero la caché (anda sin internet); lo que no está, de la red
+// primero la caché (anda sin internet); lo que no está, de la red. El código PRO va cifrado en pro.bin (se guarda
+// como cualquier archivo: sin la llave no sirve); la carpeta pro/ es solo de desarrollo y no se guarda.
 self.addEventListener("fetch", (e) => {
   const req = e.request;
   if (req.method !== "GET" || new URL(req.url).origin !== location.origin) return;
