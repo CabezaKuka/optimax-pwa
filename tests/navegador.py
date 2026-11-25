@@ -50,7 +50,7 @@ def celular(b, base, cap):
     pg.goto(base)
     pg.wait_for_selector(".inicio")
     control(pg.locator(".mod").count() == 5, "inicio: 5 módulos")
-    control(pg.locator("a.mod").count() == 1, "inicio: solo Chapa se abre")
+    control(pg.locator("a.mod").count() == 2, "inicio: se abren Chapa y Barras")
     control(pg.is_hidden("#migas"), "inicio: sin «← Inicio»")
     if cap:
         pg.screenshot(path=f"{cap}/c_inicio.png", full_page=True)
@@ -112,6 +112,7 @@ def celular(b, base, cap):
     pg.goto(base + "#chapa")
     pg.wait_for_selector("#chapas li")
     control(True, "entrar directo a #chapa")
+    barras_demo(pg, base, cap)
     pg.goto(base + "#portones")
     pg.wait_for_selector(".inicio")
     control(not pg.url.endswith("#portones"), "módulo no disponible → inicio")
@@ -126,6 +127,49 @@ def celular(b, base, cap):
     ctx.set_offline(False)
     control(not errs, f"celular: errores de JS {errs}")
     ctx.close()
+
+
+def resumen_barras(pg):
+    return pg.inner_text("#b-resumen .dato-v >> nth=0")
+
+
+def barras_demo(pg, base, cap):
+    pg.evaluate("localStorage.removeItem('optimax-barras')")
+    pg.goto(base + "#barras")
+    pg.wait_for_selector("#b-resumen .dato")
+    control(pg.locator(".pieza").count() == 3, "barras: 3 renglones de ejemplo")
+    control(resumen_barras(pg) == "1" and pg.is_hidden("#b-demo"), "barras: el ejemplo entra en 1 barra, sin aviso")
+    control(pg.is_visible(".precio-pro") and pg.is_hidden("#b-precio"), "barras DEMO: precio bloqueado")
+    if cap:
+        pg.screenshot(path=f"{cap}/c_barras.png", full_page=True)
+    pg.click(".pieza >> nth=0 >> .mas")
+    pg.wait_for_timeout(300)
+    control(pg.is_visible("#b-demo") and "1 afuera" in pg.inner_text("#b-demo").replace("quedaron ", ""),
+            "barras DEMO: con 6 piezas avisa que calcula 5")
+    # pegar lista
+    pg.click("#b-pegar")
+    pg.wait_for_selector("#hoja-pegar[open]")
+    pg.fill("#pegar-txt", "Largo\tCantidad\n2500\t3\n1200\t1\n")
+    pg.click("#pegar-ok")
+    pg.wait_for_timeout(400)
+    control(pg.locator(".pieza").count() == 4, "barras: pegar suma la cantidad al largo repetido y agrega el nuevo")
+    control(pg.input_value(".pieza >> nth=3 >> input") == "2500", "barras: el largo pegado queda en la lista")
+    # largo inválido
+    pg.fill(".pieza >> nth=1 >> input", "8o0")
+    pg.wait_for_timeout(400)
+    control(pg.is_visible("#b-error") and "Pieza 2" in pg.inner_text("#b-error"), "barras: largo inválido")
+    pg.fill(".pieza >> nth=1 >> input", "800")
+    pg.fill("#b-largo", "1000")
+    pg.wait_for_timeout(400)
+    control("no entra" in pg.inner_text("#b-error"), "barras: pieza más larga que la barra")
+    pg.fill("#b-largo", "6000")
+    pg.wait_for_timeout(400)
+    control(pg.is_hidden("#b-error"), "barras: se corrige")
+    pg.reload()
+    pg.wait_for_selector("#b-resumen .dato")
+    control(pg.locator(".pieza").count() == 4, "barras: recuerda la lista")
+    pg.click("#migas .volver")
+    pg.wait_for_selector(".inicio")
 
 
 def pc(b, base, cap):
@@ -172,6 +216,18 @@ def pro(b, base, cap):
         control(n >= 1 and trazos > 50 and pg.is_hidden("#error"), f"PRO: {fid} se calcula y se dibuja")
         if cap:
             pg.locator(".plancha").screenshot(path=f"{cap}/pro_{fid}.png")
+    # barras con PRO: sin tope, optimizador completo y precio por pieza
+    pg.evaluate("localStorage.setItem('optimax-barras', JSON.stringify({largo:'6000',corte:'3',filas:[['1200',8],['800',12],['450',20]],precio:'',reparto:false}))")
+    pg.goto(base + "#barras")
+    pg.wait_for_selector("#b-resumen .dato")
+    control(pg.is_hidden("#b-demo"), "barras PRO: 40 piezas sin aviso")
+    control(any(u.endswith("/pro/barras/optimizar.js") for u in pedidos), "barras PRO: carga el optimizador completo")
+    control(pg.is_visible("#b-precio") and pg.is_hidden(".precio-pro"), "barras PRO: precio habilitado")
+    pg.fill("#b-precio", "120")
+    pg.wait_for_timeout(400)
+    control(pg.locator("#b-costo tbody tr").count() == 3, "barras PRO: precio de cada pieza")
+    if cap:
+        pg.screenshot(path=f"{cap}/pro_barras.png", full_page=True)
     pg.goto(base + "?pro=0")
     pg.wait_for_selector(".inicio")
     control(pg.is_visible(".btn-pro"), "?pro=0: vuelve la DEMO")

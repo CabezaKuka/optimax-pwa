@@ -6,6 +6,8 @@ const MOTIVOS = {
   imprimir: "Imprimir la plantilla a escala, para trazar sobre la chapa, es de la versión PRO.",
   pdf: "Guardar la lista de corte en PDF es de la versión PRO.",
   figura: "Esta figura es de la versión PRO.",
+  barras: "Calcular listas de más de 5 piezas, con el optimizador completo, es de la versión PRO.",
+  precio: "El precio de cada pieza es de la versión PRO.",
   "": "Imprimir a escala y guardar las listas de corte en PDF son de la versión PRO.",
 };
 

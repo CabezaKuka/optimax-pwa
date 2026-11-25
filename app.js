@@ -14,6 +14,9 @@ async function ir() {
   const id = decodeURIComponent(location.hash.slice(1));
   const m = moduloPorId(id);
   const destino = m?.disponible ? id : "inicio";
+  if (destino === "inicio" && id && id !== "inicio") {
+    history.replaceState(null, "", location.pathname + location.search);   // módulo que no hay (o todavía no)
+  }
   if (actual?.id === destino) return;                     // ya está (p. ej. vuelta de la pantalla completa)
   const mio = ++turno;
   actual?.mod.desmontar?.();
@@ -22,7 +25,6 @@ async function ir() {
   pantalla.innerHTML = "";
   window.scrollTo(0, 0);
   if (destino === "inicio") {
-    if (id && id !== "inicio") history.replaceState(null, "", location.pathname + location.search);   // módulo que no hay
     actual = { id: "inicio", mod: inicio };
     document.title = "optiMAX · Herramientas para el taller";
     $("#migas").hidden = true;

@@ -1,9 +1,9 @@
 // Service worker: guarda la app para que ande sin internet. Al cambiar cualquier archivo, subir VERSION
 // (si no, los que ya la tienen siguen viendo la vieja hasta que se borre la caché).
-const VERSION = "optimax-pwa-4";
+const VERSION = "optimax-pwa-5";
 const ARCHIVOS = [
   "./", "index.html", "app.css", "app.js", "vista.js", "manifest.webmanifest",
-  "modulos.js", "inicio.js", "iconos.js", "licencia.js", "hoja-pro.js", "modulos/chapa.js",
+  "modulos.js", "inicio.js", "iconos.js", "licencia.js", "hoja-pro.js", "modulos/chapa.js", "modulos/barras.js", "barras/motor.js",
   "geo/base.js", "geo/index.js", "geo/medidas.js",
   "geo/t_cil_cil.js", "geo/codo_sectores.js", "geo/tronco_cono.js", "geo/tronco_piramide.js",
   "fuentes/barlow-latin-400-normal.woff2", "fuentes/barlow-latin-600-normal.woff2",

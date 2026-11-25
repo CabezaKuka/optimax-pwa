@@ -14,6 +14,8 @@ app.js                        arranque y rutas (#inicio, #chapa, …), instalar,
 modulos.js                    módulos por oficio (disponible = false → «Próximamente» en el inicio)
 inicio.js                     pantalla de inicio
 modulos/chapa.js              módulo Chapa (figura, medidas, plancha, lista de chapas)
+modulos/barras.js             módulo Barras y tubos (piezas, pegar lista, barras dibujadas, lista de corte, precio PRO)
+barras/motor.js               corte de barras de la DEMO (lectura de listas, cálculo rápido); el completo es PRO
 licencia.js                   esPro() y cargarPro(): la licencia se conecta al final (Railway)
 hoja-pro.js, iconos.js        hoja de compra; íconos de los módulos
 vista.js                      dibujo de la plancha (SVG), cotas, zoom y desplazamiento

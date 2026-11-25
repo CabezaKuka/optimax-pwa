@@ -20,9 +20,10 @@ export const MODULOS = [
     descripcion: "Largueros, peldaños y baranda, con su lista de corte.",
   },
   {
-    id: "barras", oficio: "Herrería", icono: "barras", disponible: false,
+    id: "barras", oficio: "Herrería", icono: "barras", disponible: true,
     nombre: "Barras y tubos",
-    descripcion: "Cómo cortar las barras para aprovecharlas mejor.",
+    descripcion: "Cómo cortar las barras para aprovecharlas mejor, con la lista de corte.",
+    cargar: () => import("./modulos/barras.js"),
   },
   {
     id: "guillotina", oficio: "Carpintería", icono: "guillotina", disponible: false,
