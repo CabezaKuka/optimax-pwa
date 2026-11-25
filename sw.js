@@ -3,7 +3,7 @@
 const VERSION = "optimax-pwa-18";
 const ARCHIVOS = [
   "./", "index.html", "app.css", "app.js", "vista.js", "manifest.webmanifest",
-  "modulos.js", "inicio.js", "iconos.js", "licencia.js", "licencia-config.js", "vendor/ed25519.js", "hoja-pro.js", "salida.js", "modulos/chapa.js", "modulos/barras.js", "barras/motor.js",
+  "modulos.js", "inicio.js", "iconos.js", "licencia.js", "licencia-config.js", "vendor/ed25519.js", "hoja-pro.js", "salida.js", "trabajos.js", "modulos/chapa.js", "modulos/barras.js", "barras/motor.js",
   "modulos/guillotina.js", "guillotina/motor.js", "modulos/portones.js", "portones/motor.js", "barras/trabajador.js",
   "geo/base.js", "geo/index.js", "geo/medidas.js",
   "geo/t_cil_cil.js", "geo/codo_sectores.js", "geo/tronco_cono.js", "geo/tronco_piramide.js",

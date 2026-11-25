@@ -7,6 +7,7 @@ import { corto } from "../geo/base.js";
 import { cargarPro } from "../licencia.js";
 import { ponerContexto } from "../hoja-pro.js";
 import { abrirSalida, activarBoton, cerrarSalida } from "../salida.js";
+import { armarTrabajos } from "../trabajos.js";
 
 const CLAVE = "optimax-guillotina";
 const DEMO_PIEZAS = 5;
@@ -26,7 +27,7 @@ const PALETA = ["#a6ceff", "#ffd699", "#b2e8ba", "#ffb6c1", "#d6c4ff", "#fff499"
   "#c9e59a", "#e0c3e8"];
 
 const $ = (s) => document.querySelector(s);
-let raiz, pro, est, reloj, turno = 0, ultimo = null, salidaPdf = null;
+let raiz, pro, est, reloj, turno = 0, ultimo = null, salidaPdf = null, trabajos = null;
 
 function cargarMemoria() {
   let m = null;
@@ -40,6 +41,7 @@ function cargarMemoria() {
 }
 function guardar() {
   try { localStorage.setItem(CLAVE, JSON.stringify(est)); } catch { /* sin almacenamiento */ }
+  trabajos?.cambio();
 }
 
 export async function montar(cont) {
@@ -59,6 +61,10 @@ export async function montar(cont) {
   opcionesPlanchas();
   armarEventos();
   dibujarFilas();
+  trabajos = armarTrabajos(raiz.querySelector(".b-datos"), {
+    modulo: "guillotina", tipo: "guillotina", nesting: true, datos: datosTrabajo, cargar: cargarTrabajo,
+    nuevo: nuevoTrabajo, sugerido: () => planchaElegida()?.material || "Guillotina",
+  });
   calcular();
   if (salidaPdf) activarBoton($("#g-pdf"), "Imprimir o guardar en PDF", guardarPdf);
 }
@@ -557,4 +563,64 @@ function cambioPlancha(i, c, inp) {
   refrescarPlanchas();
   opcionesPlanchas();
   programar(250);
+}
+
+// ------------------------------------------------------------------ trabajo (proyecto, formato de la PC)
+// GUILLOTINA_CLAVES de la PC: largo, ancho, corte, refilado, max_corte, rotar, material, precio_m2, kg_m2, reparto, lista.
+// La PC busca el material en sus Ajustes y, si no está, lo agrega con el precio por m² del proyecto. Propio de la PWA
+// (la PC lo ignora): precio_plancha.
+function datosTrabajo() {
+  const pl = planchaElegida();
+  const L = pl ? corto(pl.largo, 1) : String(est.largo), A = pl ? corto(pl.ancho, 1) : String(est.ancho);
+  const precio = precioPlancha() || 0;
+  let area = 0;
+  try { area = numero(L) * numero(A) / 1e6; } catch { area = 0; }
+  const lista = est.filas.filter(([a, l]) => String(a).trim() !== "" || String(l).trim() !== "")
+    .map(([a, l, c]) => `${a}\t${l}\t${c}`).join("\n");
+  return { tipo: "guillotina", guillotina: {
+    largo: L, ancho: A, corte: String(est.corte), refilado: String(est.refilado), max_corte: String(est.max),
+    rotar: est.rotar ? "1" : "0", material: pl ? pl.nombre : (precio > 0 ? `Plancha ${L}×${A} mm` : ""),
+    precio_m2: precio > 0 && area > 0 ? corto(precio / area, 4) : "", kg_m2: "", reparto: est.reparto ? "1" : "0", lista,
+    precio_plancha: precio > 0 ? corto(precio, 2) : "",
+  } };
+}
+
+/** Abre un trabajo (de la PWA o de la PC). La plancha: la de la lista con ese nombre o, si no está, «Otra medida». */
+async function cargarTrabajo(op) {
+  const g = op.guillotina || {};
+  const txt = (v) => med(v).replace(/\./g, "");
+  const [piezas, avisos] = leerTexto(g.lista || "");
+  est.filas = piezas.length ? sumarFilas([], piezas).map(([a, l, c]) => [txt(a), txt(l), c]) : [["", "", 1]];
+  est.corte = String(g.corte ?? "2");
+  est.refilado = String(g.refilado ?? "0");
+  est.max = String(g.max_corte ?? "0");
+  est.rotar = String(g.rotar ?? "1") !== "0";
+  est.reparto = String(g.reparto ?? "0") === "1";
+  const pl = usables().find((p) => p.nombre === g.material);
+  if (pl) est.plancha = pl.nombre;
+  else {
+    est.plancha = "";
+    est.largo = String(g.largo ?? "2440");
+    est.ancho = String(g.ancho ?? "1220");
+    let precio = "";
+    try {
+      if (String(g.precio_plancha || "").trim()) precio = corto(numero(g.precio_plancha), 2);
+      else if (String(g.precio_m2 || "").trim()) precio = corto(numero(g.precio_m2) * numero(est.largo) * numero(est.ancho) / 1e6, 2);
+    } catch { precio = ""; }
+    est.precio = precio;
+  }
+  guardar();
+  desmontar();
+  await montar(raiz);
+  const msgs = [];
+  if (!pl && g.material) msgs.push(`La plancha «${g.material}» no está en tu lista: quedó como «Otra medida».`);
+  if (avisos.length) msgs.push(avisos.join(" "));
+  return msgs.join(" ");
+}
+
+async function nuevoTrabajo() {
+  est.filas = [["", "", 1]];
+  guardar();
+  desmontar();
+  await montar(raiz);
 }

@@ -5,6 +5,7 @@ import { optimizarRapido, leerTexto, sumarFilas, recortar, numero, med, miles } 
 import { cargarPro } from "../licencia.js";
 import { ponerContexto } from "../hoja-pro.js";
 import { abrirSalida, activarBoton, cerrarSalida } from "../salida.js";
+import { armarTrabajos } from "../trabajos.js";
 
 const CLAVE = "optimax-barras";
 const DEMO_PIEZAS = 5;
@@ -14,13 +15,14 @@ const PALETA = ["#a6ceff", "#ffd699", "#b2e8ba", "#ffb6c1", "#d6c4ff", "#fff499"
   "#c9e59a", "#e0c3e8"];
 
 const $ = (s) => document.querySelector(s);
-let raiz, pro, est, reloj, ultimo = null, salidaPdf = null;
+let raiz, pro, est, reloj, ultimo = null, salidaPdf = null, trabajos = null;
 
 function cargarMemoria() {
   try { return { ...INICIAL, ...(JSON.parse(localStorage.getItem(CLAVE)) || {}) }; } catch { return { ...INICIAL }; }
 }
 function guardar() {
   try { localStorage.setItem(CLAVE, JSON.stringify(est)); } catch { /* sin almacenamiento */ }
+  trabajos?.cambio();
 }
 
 export async function montar(cont) {
@@ -38,6 +40,10 @@ export async function montar(cont) {
   raiz.querySelector(".precio").classList.toggle("bloq", !pro);
   armarEventos();
   dibujarFilas();
+  trabajos = armarTrabajos(raiz.querySelector(".b-datos"), {
+    modulo: "barras", tipo: "barras", nesting: true, datos: datosTrabajo, cargar: cargarTrabajo,
+    nuevo: nuevoTrabajo, sugerido: () => "Barras",
+  });
   calcular();
   if (salidaPdf) activarBoton($("#b-pdf"), "Imprimir o guardar en PDF", guardarPdf);
 }
@@ -292,3 +298,37 @@ function mostrarCosto(r) {
     `<tr><td colspan="3">${r.n_barras} ${r.n_barras === 1 ? "barra" : "barras"}</td><td>${d2(c.total)}</td></tr></tfoot></table>`;
 }
 
+
+// ------------------------------------------------------------------ trabajo (proyecto, formato de la PC)
+// BARRAS_CLAVES de la PC: largo, corte, material, perfil, precio, kg_m, reparto, lista. La PWA no tiene lista de
+// materiales: va «Barra de N mm» (la PC la agrega como material del proyecto, con su largo y precio).
+function datosTrabajo() {
+  const lista = est.filas.filter(([l]) => String(l).trim() !== "").map(([l, c]) => `${l}\t${c}`).join("\n");
+  const material = `Barra de ${String(est.largo).trim()} mm`;
+  return { tipo: "barras", barras: {
+    largo: String(est.largo), corte: String(est.corte), material, perfil: material, precio: String(est.precio || ""),
+    kg_m: "", reparto: est.reparto ? "1" : "0", lista,
+  } };
+}
+
+async function cargarTrabajo(op) {
+  const b = op.barras || {};
+  const [piezas, avisos] = leerTexto(b.lista || "");
+  const txt = (v) => med(v).replace(/\./g, "");
+  est.filas = piezas.length ? sumarFilas([], piezas).map(([l, c]) => [txt(l), c]) : [["", 1]];
+  est.largo = String(b.largo ?? "6000");
+  est.corte = String(b.corte ?? "3");
+  est.precio = String(b.precio ?? "").trim() === "0" ? "" : String(b.precio ?? "");
+  est.reparto = String(b.reparto ?? "0") === "1";
+  guardar();
+  desmontar();
+  await montar(raiz);
+  return avisos.join(" ");
+}
+
+async function nuevoTrabajo() {
+  est.filas = [["", 1]];
+  guardar();
+  desmontar();
+  await montar(raiz);
+}

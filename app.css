@@ -676,3 +676,37 @@ body.sin-scroll { overflow: hidden; }
 .campo-ancho { grid-template-columns: minmax(0, 1fr); row-gap: 6px; }
 .campo-ancho .p-select { width: 100%; }
 .g-pl-res { margin: 0 0 4px; }
+
+/* ------------------------------------------------------------ trabajos (proyectos) */
+.trabajo-barra { margin: 0 0 12px; }
+.trabajo-btn {
+  display: flex; align-items: center; gap: 10px; width: 100%; min-height: 52px; padding: 8px 12px;
+  border: 1px solid var(--linea); border-left: 5px solid var(--of); border-radius: var(--radio-g); background: var(--hoja);
+  color: var(--tinta); text-align: left; box-shadow: 0 1px 2px rgb(16 24 40 / .05);
+}
+.trabajo-btn .t-ico { display: flex; flex: none; width: 26px; height: 26px; color: var(--of); }
+.trabajo-btn .t-ico svg { width: 26px; height: 26px; }
+.t-txt { display: grid; min-width: 0; flex: 1; }
+.t-rot { font-size: 12px; font-weight: 600; color: var(--gris); text-transform: uppercase; letter-spacing: .04em; }
+.t-nom { font-size: 16px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.t-ir { flex: none; font-size: 14px; font-weight: 600; color: var(--of); }
+.trabajo-btn .candado { flex: none; }
+.t-campo { display: grid; gap: 4px; font-size: 13px; font-weight: 600; color: var(--gris); }
+.t-campo .entrada input { text-align: left; padding-left: 12px; font-size: 17px; }
+.t-acc { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.t-acc .btn-sec { flex: 1 1 auto; }
+.hoja .t-nota { margin: 8px 0 0; font-size: 13px; }
+.t-confirma { margin-top: 12px; padding: 10px 12px; border-radius: var(--radio); background: #fdecec; border: 1px solid #f3b9b9; }
+.t-confirma[hidden] { display: none; }
+.hoja .t-confirma p { margin: 0 0 10px; font-size: 15px; }
+.hoja .t-aviso { margin: 12px 0 0; font-size: 14px; color: var(--gris); }
+.t-sub { margin: 18px 0 8px; font-size: 16px; font-weight: 700; color: var(--of); }
+.t-lista { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.t-item { display: flex; align-items: stretch; border: 1px solid var(--linea); border-radius: var(--radio); background: var(--hoja); overflow: hidden; }
+.t-item.t-actual { border-color: var(--of); box-shadow: 0 0 0 2px var(--of-suave); }
+.t-abrir { flex: 1; display: grid; gap: 2px; padding: 10px 12px; border: 0; background: transparent; text-align: left; color: var(--tinta); min-width: 0; }
+.t-abrir b { font-size: 16px; overflow-wrap: anywhere; }
+.t-abrir span { font-size: 13px; color: var(--gris); }
+.t-borrar { flex: none; width: 48px; border: 0; border-left: 1px solid var(--linea); background: transparent; color: var(--gris); }
+.t-borrar svg { width: 20px; height: 20px; }
+@media (min-width: 600px) { .hoja-pro.hoja-trabajos { width: 520px; } }

@@ -9,6 +9,7 @@ import { corto } from "../geo/base.js";
 import { cargarPro, urlPro } from "../licencia.js";
 import { ponerContexto, abrirPro } from "../hoja-pro.js";
 import { abrirSalida, activarBoton, cerrarSalida } from "../salida.js";
+import { armarTrabajos } from "../trabajos.js";
 
 const CLAVE = "optimax-portones";
 // perfiles de ejemplo, sin precio (cada uno carga los suyos en «Perfiles»)
@@ -44,6 +45,7 @@ const $ = (s) => raiz.querySelector(s);
 const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const n1 = (v) => miles(v, 1, true);
 let raiz, est, observador = null, salidaPdf = null, pro = false, optPro = null, rutaOpt = null, reloj, calc = null, sel = null, avisoDemo = "";
+let trabajos = null;
 let trabajador = null, ocupado = false, pedido = 0, alVolver = null, completa = null, zoom = 1;
 const cache = new Map();                 // resultados del optimizador completo (como portones._MEMO)
 
@@ -59,6 +61,7 @@ function cargarMemoria() {
 }
 function guardar() {
   try { localStorage.setItem(CLAVE, JSON.stringify(est)); } catch { /* sin almacenamiento */ }
+  trabajos?.cambio();
 }
 const perfiles = () => P.perfilesDe(est.perfiles.filter((m, i) => !repetido(est.perfiles, i)));
 
@@ -80,6 +83,10 @@ export async function montar(cont) {
   armarCampos();
   armarEventos();
   ponerValores();
+  trabajos = armarTrabajos(raiz.querySelector(".b-datos"), {
+    modulo: "portones", tipo: "portones", nesting: true, datos: datosTrabajo, cargar: cargarTrabajo,
+    nuevo: nuevoTrabajo, sugerido: () => est.item.nombre || P.TEXTO[est.item.tipo] || "Portón",
+  });
   calcular();
   if (salidaPdf) activarBoton($("#p-pdf"), "Imprimir o guardar en PDF", guardarPdf);
 }
@@ -855,4 +862,62 @@ function cerrarCompleta() {
   completa.remove();
   completa = null;
   document.body.classList.remove("sin-scroll");
+}
+
+// ------------------------------------------------------------------ trabajo (proyecto, formato de la PC)
+// PORTONES_CLAVES de la PC: items, corte, colorear, cotas, costos ({soldadura_m, pintura_m2}), filtro, perfiles (los
+// usados, como materiales de barras) + version. La PWA tiene un portón por trabajo. Propio de la PWA: margen.
+function datosTrabajo() {
+  const it = est.item;
+  const usados = new Set(["perfil_marco", "perfil_trav", "perfil_relleno"].map((k) => it[k]).filter(Boolean));
+  const perfilesUsados = est.perfiles.filter((m, i) => usados.has(m.nombre) && !repetido(est.perfiles, i))
+    .map((m) => ({ nombre: m.nombre, forma: m.forma, medidas: m.medidas, largo: Number(m.largo) || 6000,
+      precio: Number(m.precio) || 0, kg_m: 0 }));
+  return { tipo: "portones", portones: {
+    version: 1, items: [{ ...it }], corte: String(est.corte), colorear: true, cotas: !!est.cotas, filtro: "Todos",
+    costos: { soldadura_m: num(est.sold, 0), pintura_m2: num(est.pint, 0) }, perfiles: perfilesUsados,
+    margen: String(est.margen ?? "1"),
+  } };
+}
+
+/** Abre un trabajo (de la PWA o de la PC). Los perfiles que no están en la lista se agregan (como hace la PC). */
+async function cargarTrabajo(op) {
+  const p = op.portones || {}, msgs = [];
+  if (Number(p.version || 1) > 1) throw new Error("El proyecto se guardó con una versión más nueva del programa.");
+  const items = Array.isArray(p.items) ? p.items : [];
+  if (items.length > 1) msgs.push(`El proyecto tiene ${items.length} rejas o portones: se abrió el primero («${items[0].nombre || P.TEXTO[items[0].tipo] || "Portón"}»). La PWA trabaja con uno por trabajo.`);
+  const item = P.normalizarItem({ ...ITEM_INICIAL, ...(items[0] || {}) });
+  // perfiles del proyecto: el mismo (forma, medidas y barra) que ya está en la lista → se usa ese; si no, se agrega
+  const cambio = {};
+  let agregados = 0;
+  for (const m of Array.isArray(p.perfiles) ? p.perfiles : []) {
+    const nuevo = { nombre: String(m.nombre || ""), forma: String(m.forma || ""), medidas: String(m.medidas || ""),
+      largo: Number(m.largo) || 6000, precio: Number(m.precio) || 0 };
+    if (!P.perfilDe(nuevo)) continue;
+    const k = base(nuevo).clave;
+    const igual = est.perfiles.find((o) => base(o).clave === k && Number(o.largo) === nuevo.largo);
+    if (igual) cambio[nuevo.nombre] = igual.nombre;
+    else { est.perfiles.push(nuevo); agregados++; }
+  }
+  if (agregados) msgs.push(`Se ${agregados === 1 ? "agregó a tu lista 1 perfil" : `agregaron a tu lista ${agregados} perfiles`} del proyecto.`);
+  for (const [k] of USOS) if (item[k] in cambio) item[k] = cambio[item[k]];
+  est.item = item;
+  renombrar();                                        // nombres automáticos; el ítem sigue a sus perfiles
+  est.corte = String(p.corte ?? "3");
+  est.cotas = !!p.cotas;
+  const c = p.costos || {};
+  est.sold = Number(c.soldadura_m) > 0 ? corto(Number(c.soldadura_m), 2) : "";
+  est.pint = Number(c.pintura_m2) > 0 ? corto(Number(c.pintura_m2), 2) : "";
+  if (p.margen !== undefined) est.margen = String(p.margen);
+  guardar();
+  desmontar();
+  await montar(raiz);
+  return msgs.join(" ");
+}
+
+async function nuevoTrabajo() {
+  est.item = P.normalizarItem({ ...ITEM_INICIAL });
+  guardar();
+  desmontar();
+  await montar(raiz);
 }
