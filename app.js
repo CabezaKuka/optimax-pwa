@@ -2,8 +2,8 @@
 // Cada módulo (modulos/*.js) exporta montar(contenedor) y desmontar().
 import { moduloPorId } from "./modulos.js";
 import * as inicio from "./inicio.js";
-import { armarHojaPro, ponerContexto } from "./hoja-pro.js";
-import { esPro, DESARROLLO } from "./licencia.js";
+import { armarHojaPro, ponerContexto, abrirActivar } from "./hoja-pro.js";
+import { esPro, DESARROLLO, iniciar, licencia, avisoLicencia } from "./licencia.js";
 
 const $ = (s) => document.querySelector(s);
 const pantalla = $("#pantalla");
@@ -72,9 +72,27 @@ function armarInstalacion() {
 }
 
 // ------------------------------------------------------------------ arranque
+try {
+  await iniciar();                                // clave guardada → verificar → abrir el código PRO
+} catch { /* sigue como DEMO */ }
 if (esPro()) {
   $(".btn-pro").hidden = true;                    // con PRO no se ofrece comprar
   if (DESARROLLO) document.body.dataset.pro = "desarrollo";
+  const lic = licencia();
+  if (lic) {
+    $("#pie-lic").textContent = `PRO · ${lic.nombre}`;
+    $("#pie-lic").hidden = false;
+  }
+} else if (avisoLicencia()) {
+  $("#aviso-lic").innerHTML = "";
+  $("#aviso-lic").append(avisoLicencia(), " ");
+  const b = document.createElement("button");
+  b.type = "button";
+  b.className = "enlace";
+  b.textContent = "Activar de nuevo";
+  b.addEventListener("click", abrirActivar);
+  $("#aviso-lic").append(b);
+  $("#aviso-lic").hidden = false;
 }
 armarHojaPro();
 armarInstalacion();
