@@ -105,7 +105,7 @@ const PLANTILLA = `
     <ul class="chapas" id="chapas" aria-live="polite"></ul>
 
     <div class="acciones">
-      <button type="button" class="btn-bloq" id="btn-imprimir" data-abre-pro="imprimir"><span class="candado" aria-hidden="true"></span>Imprimir a escala <span class="tag">PRO</span></button>
+      <button type="button" class="btn-bloq" id="btn-imprimir" data-abre-pro="imprimir"><span class="candado" aria-hidden="true"></span>PDF: plano y plantilla <span class="tag">PRO</span></button>
     </div>
 
     <p class="verificar">Verificá todas las medidas antes de cortar o fabricar.</p>
@@ -299,13 +299,14 @@ function elegir(g) {
   calcular({ ajustar: true });
 }
 
-// ------------------------------------------------------------------ imprimir a escala (PRO)
+// ------------------------------------------------------------------ PDF: plano y plantilla (PRO)
+const ICONO_PDF = `<svg class="ico-btn" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 2h9l5 5v15H6z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M14 2v6h6M9 13h8M9 17h6" fill="none" stroke="currentColor" stroke-width="2"/></svg>`;
 function armarImprimir() {
   if (!salida) return;                                     // DEMO: el botón abre la hoja de compra
   const b = $("#btn-imprimir");
   b.removeAttribute("data-abre-pro");
   b.classList.replace("btn-bloq", "btn-accion");
-  b.innerHTML = "Imprimir a escala 1:1";
+  b.innerHTML = `${ICONO_PDF}PDF: plano y plantilla`;
   b.addEventListener("click", imprimir);
 }
 
@@ -321,18 +322,22 @@ function imprimir() {
   const { piezas, t, v } = ultimas;
   const info = { figura: fig.nombre, espesor: t, valores: fig.params.map((p) => [p.etiqueta, valorTexto(p, v[p.clave])]) };
   abrirSalida({
-    titulo: "Imprimir a escala 1:1",
-    archivo: `${nombreCorto(fig.id)} - plantilla.pdf`,
+    titulo: "PDF de la pieza",
+    archivo: (modo) => `${nombreCorto(fig.id)} - ${modo === "plano" ? "plano" : "plantilla"}.pdf`,
     opciones: salida.MODOS,
-    inicial: "hojas",
+    inicial: "plano",
     describir: (modo) => {
       const n = salida.contarPaginas(piezas, modo);
+      const pag = `${n} ${n === 1 ? "página" : "páginas"}`;
+      if (modo === "plano") return `${pag}: una A4 por chapa, con el dibujo a escala y sus medidas. Para el taller o el cliente.`;
       return modo === "una"
-        ? `${n} páginas: una de datos y cada chapa entera en una hoja de su tamaño. Para una imprenta o un plotter.`
-        : `${n} páginas: una de datos, un mapa por chapa grande y las hojas A4 de la plantilla, con solape y cruces para unirlas.`;
+        ? `${pag}: una de datos y cada chapa entera en una hoja de su tamaño. Para una imprenta o un plotter.`
+        : `${pag}: una de datos, un mapa por chapa grande y las hojas A4 de la plantilla, con solape y cruces para unirlas.`;
     },
     armar: (modo) => salida.pdfPlantilla(info, piezas, modo),
-    nota: "Imprimí al 100 % («Tamaño real»), sin «Ajustar a la página». Antes de trazar, medí el cuadrado de control: tiene que dar 100 mm.",
+    nota: (modo) => (modo === "plano"
+      ? "El dibujo está achicado (la escala está arriba): para medir, usá las cotas, no la regla."
+      : "Imprimí al 100 % («Tamaño real»), sin «Ajustar a la página». Antes de trazar, medí el cuadrado de control: tiene que dar 100 mm."),
   });
 }
 
