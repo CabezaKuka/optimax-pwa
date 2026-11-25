@@ -152,6 +152,11 @@ const PLANTILLA = `
         <label><input type="radio" name="p-armado" value="a_tope"><span>A tope</span></label>
         <label><input type="radio" name="p-armado" value="pasantes"><span>Pasantes</span></label>
       </div></div>
+    <div class="campo campo-opcion" data-k="trav_lado"><span class="rotulo" id="p-trav_lado-rot">Travesaños</span>
+      <div class="segmentos" role="radiogroup" aria-labelledby="p-trav_lado-rot">
+        <label><input type="radio" name="p-trav_lado" value="adelante"><span>Adelante</span></label>
+        <label><input type="radio" name="p-trav_lado" value="atras"><span>Atrás</span></label>
+      </div></div>
     ${campo("esp_chapa")}
     </div>
     <details class="p-plegable" id="p-holguras"><summary>Holguras del portón</summary>
@@ -225,7 +230,7 @@ const ptsSvg = (pts) => pts.map(([x, y]) => `${+x.toFixed(3)},${+(-y).toFixed(3)
  * Elevación R en SVG. anchoPx / altoMax: lugar disponible en píxeles (de ahí sale la escala, para que textos y
  * marcas tengan tamaño fijo en pantalla). marcas: {clave: fila} para colorear; sel: marca resaltada.
  */
-function svgElevacion(R, { anchoPx, altoMax = 1e9, marcas = null, seleccion = null, cotas = false, mini = false }) {
+function svgElevacion(R, { anchoPx, altoMax = 1e9, marcas = null, seleccion = null, cotas = false, mini = false, travAtras = false }) {
   const [x0, y0, x1, y1] = P.limites(R, cotas);
   const [W, H] = R.vano;
   const borde = mini ? 3 : cotas ? 16 : 34;                       // px alrededor (sin cotas: los textos del vano)
@@ -241,7 +246,8 @@ function svgElevacion(R, { anchoPx, altoMax = 1e9, marcas = null, seleccion = nu
       `<rect x="0" y="${-H}" width="${W}" height="${H}" fill="none" stroke="${PISO}" stroke-dasharray="5 3" vector-effect="non-scaling-stroke"/>`);
   }
   const mejor = new Map();
-  for (const [capa, pts, k] of [...R.formas].sort((a, b) => ORDEN[a[0]] - ORDEN[b[0]])) {
+  const orden = travAtras ? { ...ORDEN, TRAVESANO: ORDEN.BARRA, BARRA: ORDEN.TRAVESANO } : ORDEN;   // el de adelante, encima
+  for (const [capa, pts, k] of [...R.formas].sort((a, b) => orden[a[0]] - orden[b[0]])) {
     const f = marcas && k !== null ? marcas[k] : null;
     if (f) {
       let fill, linea, grosor = 1;
@@ -380,6 +386,7 @@ function ponerValores() {
   $("#p-cantidad").textContent = it.cantidad;
   $("#p-n_trav").textContent = it.n_trav;
   for (const r of raiz.querySelectorAll('input[name="p-armado"]')) r.checked = r.value === it.armado;
+  for (const r of raiz.querySelectorAll('input[name="p-trav_lado"]')) r.checked = r.value === it.trav_lado;
   $("#p-corte").value = est.corte;
   $("#p-sold").value = est.sold;
   $("#p-pint").value = est.pint;
@@ -408,6 +415,7 @@ function habilitar() {
   const it = est.item, r = it.relleno, t = it.tipo;
   const on = {
     luz_max: P.usaLuz(r), angulo: P.usaAngulo(r), armado: P.usaArmado(r) && it.n_trav > 0, esp_chapa: r === "chapa",
+    trav_lado: P.usaArmado(r) && it.n_trav > 0 && it.armado === "pasantes",
     perfil_relleno: r !== "chapa", perfil_trav: it.n_trav > 0,
     holg_lat: t === "batiente_1" || t === "batiente_2", holg_centro: t === "batiente_2", luz_piso: P.PORTONES.includes(t),
     solape: t === "corredizo",
@@ -415,6 +423,7 @@ function habilitar() {
   for (const [k, v] of Object.entries(on)) raiz.querySelector(`.campo[data-k="${k}"]`).hidden = !v;
   $("#p-holguras").hidden = !P.PORTONES.includes(t);
   $("#p-n_trav-rot").textContent = r === "horizontales" ? "Montantes" : "Travesaños";
+  $("#p-trav_lado-rot").textContent = r === "horizontales" ? "Montantes" : "Travesaños";
   raiz.querySelector('label[for="p-perfil_trav"]').textContent = r === "horizontales" ? "Montantes" : "Travesaños";
   for (const b of raiz.querySelectorAll(".p-tarjeta")) {
     const ok = it[b.dataset.clave] === b.dataset.v;
@@ -455,7 +464,10 @@ function armarEventos() {
     $(`#p-${k}`).addEventListener("change", (e) => { est.item[k] = e.target.value; programar(0); });
   }
   for (const r of raiz.querySelectorAll('input[name="p-armado"]')) {
-    r.addEventListener("change", () => { if (r.checked) { est.item.armado = r.value; programar(0); } });
+    r.addEventListener("change", () => { if (r.checked) { est.item.armado = r.value; habilitar(); programar(0); } });
+  }
+  for (const r of raiz.querySelectorAll('input[name="p-trav_lado"]')) {
+    r.addEventListener("change", () => { if (r.checked) { est.item.trav_lado = r.value; guardar(); dibujar(); dibujarCompleta(); } });
   }
   for (const [id, k] of [["p-corte", "corte"], ["p-sold", "sold"], ["p-pint", "pint"], ["p-margen", "margen"]]) {
     const inp = $(`#${id}`);
@@ -466,7 +478,8 @@ function armarEventos() {
   $("#p-ampliar").addEventListener("click", abrirCompleta);
   $("#p-3d").addEventListener("click", () => {
     if (!calc?.resultados[0]) return;
-    abrir3D(calc.resultados[0], perfiles(), { espChapa: est.item.esp_chapa, piso: P.PORTONES.includes(est.item.tipo) });
+    abrir3D(calc.resultados[0], perfiles(), { espChapa: est.item.esp_chapa, piso: P.PORTONES.includes(est.item.tipo),
+      pasantes: pasantes(), travAtras: travAtras() });
   });
   $("#p-admin").addEventListener("click", abrirPerfiles);
   $("#hoja-perfiles").addEventListener("close", cerrarPerfiles);
@@ -762,6 +775,7 @@ function dibujar() {
   const w = Math.max(cont.clientWidth, 240);
   cont.innerHTML = svgElevacion(calc.resultados[0], {
     anchoPx: w, altoMax: Math.max(300, Math.min(window.innerHeight * 0.62, 640)), marcas: calc.marcas, seleccion: sel, cotas: !!est.cotas,
+    travAtras: travAtras(),
   });
 }
 
@@ -858,7 +872,7 @@ function dibujarCompleta() {
   const w = cont.clientWidth, h = cont.clientHeight;
   const fx = cont.scrollLeft / Math.max(cont.scrollWidth, 1), fy = cont.scrollTop / Math.max(cont.scrollHeight, 1);
   cont.innerHTML = svgElevacion(calc.resultados[0], {
-    anchoPx: w * zoom, altoMax: h * zoom, marcas: calc.marcas, seleccion: sel, cotas: !!est.cotas,
+    anchoPx: w * zoom, altoMax: h * zoom, marcas: calc.marcas, seleccion: sel, cotas: !!est.cotas, travAtras: travAtras(),
   });
   cont.scrollLeft = fx * cont.scrollWidth;
   cont.scrollTop = fy * cont.scrollHeight;
@@ -928,3 +942,10 @@ async function nuevoTrabajo() {
   desmontar();
   await montar(raiz);
 }
+
+/** Barrotes pasantes (travesaños superpuestos) y si el travesaño va atrás de los barrotes (3D y orden del dibujo). */
+function pasantes() {
+  const it = est.item;
+  return P.usaArmado(it.relleno) && it.n_trav > 0 && it.armado === "pasantes";
+}
+const travAtras = () => pasantes() && est.item.trav_lado === "atras";
