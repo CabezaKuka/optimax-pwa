@@ -1,10 +1,11 @@
 // Hoja de compra de la PRO (se abre desde cualquier botón con data-abre-pro="<motivo>").
 // Cada módulo puede sumar lo suyo con ponerContexto (ej. Chapa: las figuras PRO).
-// Compra (26-nov): número de WhatsApp + forma de pago (pago-config.js) → datos para pagar → «Ya pagué» → el bot crea
-// la orden y le avisa al dueño → cuando la confirma, este equipo queda activado solo (licencia.js). Sin hablar con nadie.
+// Compra (26-nov): forma de pago (pago-config.js) → datos para pagar (el bot crea la orden) → «Ya pagué» abre WhatsApp
+// con el aviso para el bot (el número de la licencia es el del que llega; se puede sumar la foto del comprobante) →
+// el bot le avisa al dueño → cuando confirma, este equipo queda activado solo (licencia.js). Sin hablar con nadie.
 // Abajo, «Ya compré: activar» → «Entrar con WhatsApp»: el bot da un código de un solo uso, se abre WhatsApp con el
 // mensaje para el bot y, cuando llega desde el número que compró, este equipo queda activado (licencia.js).
-import { pedirIngreso, consultarIngreso, pedirCompra, consultarCompra, compraPendiente, olvidarCompra, normalizarNumero } from "./licencia.js";
+import { pedirIngreso, consultarIngreso, pedirCompra, guardarCompra, consultarCompra, compraPendiente, olvidarCompra } from "./licencia.js";
 import { METODOS } from "./pago-config.js";
 
 const WHATSAPP = "59177626675";
@@ -53,7 +54,9 @@ export function abrirPro(motivo = "") {
   $h("#btn-whatsapp").href = `https://wa.me/${WHATSAPP}?text=${encodeURIComponent(txt)}`;
   if (typeof d.showModal === "function") d.showModal(); else d.setAttribute("open", "");
   if ($h("#pro-activar").open) prepararIngreso();
-  if (compraPendiente()) pasoCompra("espera"); else if (!$h("#pro-paso-pagar").hidden) pasoCompra("pagar"); else pasoCompra("elegir");
+  if (compraPendiente()) pasoCompra("espera");
+  else if (!$h("#pro-paso-pagar").hidden) { pasoCompra("pagar"); prepararCompra(metodoElegido()); }
+  else pasoCompra("elegir");
 }
 
 export function armarHojaPro() {
@@ -103,10 +106,22 @@ const icono = (k) => `<svg class="metodo-ico" viewBox="0 0 24 24" aria-hidden="t
 const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 let relojCompra = null;
 let consultandoPago = false;
+let ordenVista = null;                   // {orden, token, whatsapp, texto} de los datos de pago a la vista
+let pidiendo = 0;
 
 function metodoElegido() {
   const v = $h("#pro-metodos input:checked")?.value;
   return PAGOS.find((m) => m.id === v) || PAGOS[0];
+}
+
+/** Enlaces de WhatsApp para mandarle «texto» al bot: el de siempre y, en Android, el de WhatsApp Business. */
+function enlacesWa(whatsapp, texto) {
+  const waMe = `https://wa.me/${whatsapp}?text=${encodeURIComponent(texto)}`;
+  return {
+    waMe,
+    business: `intent://send/?phone=${whatsapp}&text=${encodeURIComponent(texto)}` +
+      `#Intent;scheme=whatsapp;package=com.whatsapp.w4b;S.browser_fallback_url=${encodeURIComponent(waMe)};end`,
+  };
 }
 
 function armarCompra() {
@@ -120,54 +135,63 @@ function armarCompra() {
   const ponerPrecio = () => { $h("#pro-precio").textContent = metodoElegido().precio; };
   ponerPrecio();
   $h("#pro-metodos").addEventListener("change", ponerPrecio);
-  const num = $h("#pro-numero");
-  try { num.value = localStorage.getItem("optimax-whatsapp") || ""; } catch { /* sin almacenamiento */ }
-  // Enter en el número no cierra la hoja (es un <form method="dialog">): sigue al paso de pagar
-  num.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); $h("#pro-ver-pago").click(); } });
-  num.addEventListener("input", () => { $h("#pro-numero-error").hidden = true; num.closest(".entrada").classList.remove("mal"); });
   $h("#pro-ver-pago").addEventListener("click", () => {
-    try {
-      normalizarNumero(num.value);
-    } catch (e) {
-      $h("#pro-numero-error").textContent = e.message;
-      $h("#pro-numero-error").hidden = false;
-      num.closest(".entrada").classList.add("mal");
-      num.focus();
-      return;
-    }
-    try { localStorage.setItem("optimax-whatsapp", num.value.trim()); } catch { /* sin almacenamiento */ }
-    mostrarPago(metodoElegido());
+    const m = metodoElegido();
+    mostrarPago(m);
     pasoCompra("pagar");
+    prepararCompra(m);
   });
   $h("#pro-cambiar").addEventListener("click", () => pasoCompra("elegir"));
   $h("#pro-pago").addEventListener("click", async (e) => {
     const b = e.target.closest("[data-copiar]");
     if (!b) return;
-    try {
-      await navigator.clipboard.writeText(b.dataset.copiar);
-      b.textContent = "Copiado";
-    } catch {
-      b.textContent = "Mantené apretado el texto para copiarlo";
-    }
-    setTimeout(() => { b.textContent = "Copiar"; }, 1800);
+    await copiar(b, b.dataset.copiar, "Copiar");
   });
-  $h("#pro-ya-pague").addEventListener("click", async (e) => {
-    const b = e.currentTarget;
-    b.disabled = true;
-    $h("#pro-pagar-error").hidden = true;
-    try {
-      await pedirCompra(num.value, metodoElegido().id);
-      pasoCompra("espera");
-    } catch (err) {
-      $h("#pro-pagar-error").textContent = err.message;
-      $h("#pro-pagar-error").hidden = false;
-    } finally {
-      b.disabled = false;
-    }
+  // «Ya pagué»: el enlace abre WhatsApp con el aviso (lo hace el navegador); acá la orden queda guardada y se espera
+  $h("#pro-ya-pague").addEventListener("click", (e) => {
+    if (!ordenVista) { e.preventDefault(); return; }
+    guardarCompra(ordenVista, metodoElegido().id);
+    pasoCompra("espera");
+  });
+  $h("#pro-c-copiar-btn").addEventListener("click", async (e) => {
+    const c = compraPendiente();
+    if (c) await copiar(e.currentTarget, c.texto, "Copiar mensaje");
   });
   $h("#pro-c-listo").addEventListener("click", () => location.reload());
   $h("#pro-c-otra").addEventListener("click", () => { olvidarCompra(); pasoCompra("elegir"); });
   document.querySelector("#hoja-pro").addEventListener("close", pararCompra);
+}
+
+async function copiar(b, texto, rotulo) {
+  try {
+    await navigator.clipboard.writeText(texto);
+    b.textContent = "Copiado";
+  } catch {
+    b.textContent = "Mantené apretado el texto para copiarlo";
+  }
+  setTimeout(() => { b.textContent = rotulo; }, 1800);
+}
+
+/** Pide la orden al bot y deja «Ya pagué» apuntando a WhatsApp con el aviso. */
+async function prepararCompra(m) {
+  const n = ++pidiendo;
+  ordenVista = null;
+  const a = $h("#pro-ya-pague");
+  a.setAttribute("aria-disabled", "true");
+  a.href = "#";
+  $h("#pro-pagar-error").hidden = true;
+  try {
+    const d = await pedirCompra(m.id);
+    if (n !== pidiendo) return;                        // cambió de forma de pago mientras tanto
+    ordenVista = d;
+    a.href = enlacesWa(d.whatsapp, d.texto).waMe;
+    a.setAttribute("aria-disabled", "false");
+  } catch (e) {
+    if (n !== pidiendo) return;
+    $h("#pro-pagar-error").textContent = /Sin conexión/.test(e.message)
+      ? "Sin conexión: para avisar el pago hace falta internet." : e.message;
+    $h("#pro-pagar-error").hidden = false;
+  }
 }
 
 /** Datos para pagar con la forma elegida (QR, Binance Pay ID o dirección USDT). */
@@ -200,14 +224,30 @@ function pasoCompra(cual) {
   const c = compraPendiente();
   if (!c) { pasoCompra("elegir"); return; }
   const m = PAGOS.find((x) => x.id === c.metodo);
-  $h("#pro-precio").textContent = m ? m.precio : $h("#pro-precio").textContent;
-  $h("#pro-orden").textContent = `Orden ${c.orden}${m ? ` · ${m.titulo}` : ""} · WhatsApp ${numeroVisible(c.numero)}`;
-  for (const [k, v] of [["espera", true], ["error", false], ["ok", false]]) $h(`#pro-c-${k}`).hidden = !v;
+  if (m) $h("#pro-precio").textContent = m.precio;
+  $h("#pro-orden").textContent = `Orden ${c.orden}${m ? ` · ${m.titulo}` : ""}`;
+  const w = enlacesWa(c.whatsapp, c.texto);
+  $h("#pro-c-wa").href = w.waMe;
+  $h("#pro-c-business").href = w.business;
+  $h("#pro-c-business").hidden = !ANDROID;
+  $h("#pro-c-bot").textContent = numeroVisible(c.whatsapp);
+  $h("#pro-c-msj").textContent = c.texto;
+  mostrarEspera("esperando");
+  for (const k of ["error", "ok"]) $h(`#pro-c-${k}`).hidden = true;
   $h("#pro-c-listo").hidden = true;
   $h("#pro-c-otra").hidden = false;
   clearInterval(relojCompra);
   relojCompra = setInterval(consultarPago, CADA_MS_COMPRA);
   consultarPago();
+}
+
+/** esperando: todavía no llegó el aviso por WhatsApp · pendiente: llegó, falta que confirmen el pago */
+function mostrarEspera(estado) {
+  $h("#pro-c-espera").hidden = false;
+  $h("#pro-c-espera").textContent = estado === "pendiente"
+    ? "✓ Recibimos tu aviso. Estamos confirmando el pago: cuando entre, la PRO se activa sola en este equipo. Podés cerrar la app y volver después."
+    : "Mandá el aviso que se abrió en WhatsApp (y, si querés, la foto del comprobante) y volvé acá. Esperando tu aviso…";
+  $h("#pro-c-reenviar").hidden = estado === "pendiente";
 }
 
 function pararCompra() {
@@ -221,9 +261,10 @@ async function consultarPago() {
   consultandoPago = true;
   try {
     const r = await consultarCompra(c.token);
-    if (r.estado === "pendiente") return;
+    if (r.estado === "esperando" || r.estado === "pendiente") { mostrarEspera(r.estado); return; }
     pararCompra();
     $h("#pro-c-espera").hidden = true;
+    $h("#pro-c-reenviar").hidden = true;
     if (r.estado === "aprobada") {
       $h("#pro-c-ok").textContent = `✓ Pago confirmado: optiMAX PRO quedó activada en este equipo (${r.orden}). Desde ahora anda también sin internet.`;
       $h("#pro-c-ok").hidden = false;
@@ -232,13 +273,13 @@ async function consultarPago() {
       return;
     }
     const msj = {
-      rechazada: `No encontramos el pago de la orden ${c.orden}. Si ya pagaste, escribinos por WhatsApp con la orden y el comprobante.`,
+      rechazada: `No encontramos el pago de la orden ${c.orden}. Si ya pagaste, mandá el comprobante por WhatsApp al mismo chat donde avisaste.`,
       sin_licencia: `La compra de la orden ${c.orden} fue dada de baja. Escribinos por WhatsApp.`,
       desconocida: `No encontramos la orden ${c.orden}. Si ya pagaste, escribinos por WhatsApp con el comprobante.`,
     }[r.estado] || `No se pudo confirmar la orden ${c.orden}.`;
     $h("#pro-c-error").textContent = msj;
     $h("#pro-c-error").hidden = false;
-    const txt = `Hola, pagué optiMAX Taller PRO, orden ${c.orden} (WhatsApp ${numeroVisible(c.numero)}).`;
+    const txt = `Hola, pagué optiMAX Taller PRO, orden ${c.orden}.`;
     $h("#btn-whatsapp").href = `https://wa.me/${WHATSAPP}?text=${encodeURIComponent(txt)}`;
     olvidarCompra();
   } catch (e) {

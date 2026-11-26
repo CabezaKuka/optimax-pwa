@@ -11,10 +11,11 @@
 //   - El código PRO viaja dentro de la PWA, pero cifrado (pro.bin, AES-GCM). Con la llave guardada anda sin internet.
 //   - Al abrir con internet, se le pregunta al bot si el equipo sigue activo (revalidar). Si fue reemplazado por otro
 //     equipo de la misma cuenta, vuelve a la DEMO. Sin internet sigue andando (sin plazo máximo).
-//   - Compra desde la app (26-nov): el cliente pone su número, elige cómo pagar, paga y toca «Ya pagué» → el bot
-//     crea la orden (OM-1048) y le avisa al dueño; cuando el dueño confirma el pago, la cuenta del número queda con
-//     este equipo y la consulta del estado trae la clave y la llave (igual que «Entrar con WhatsApp»). La orden en
-//     curso queda guardada en el equipo: si cierran la app, sigue al volver a abrirla.
+//   - Compra desde la app (26-nov): el cliente elige cómo pagar → el bot crea la orden (OM-1048) y da el aviso para
+//     WhatsApp → paga y toca «Ya pagué», que abre WhatsApp con el aviso para el bot: el número de la licencia es el
+//     del que llega el aviso (no se escribe a mano). El bot le avisa al dueño; cuando confirma el pago, la cuenta de
+//     ese número queda con este equipo y la consulta del estado trae la clave y la llave (igual que «Entrar con
+//     WhatsApp»). La orden en curso queda guardada en el equipo: si cierran la app, sigue al volver a abrirla.
 //   - Nunca va acá una forma de fabricar claves: eso es la llave privada, que está solo en el bot.
 //
 // En desarrollo (localhost) la PRO se prende con ?pro=1 (y se apaga con ?pro=0): el código sale de la carpeta pro/
@@ -252,20 +253,7 @@ async function activarCon(clave, llave) {
 }
 
 // ------------------------------------------------------------------ compra desde la app
-/**
- * Número de WhatsApp como lo usa el bot: «71234567» → «59171234567» (8 cifras que empiezan con 6 o 7 = celular de
- * Bolivia); si no, con el código de país (10 a 15 cifras). Error con un mensaje para el usuario si no sirve.
- */
-export function normalizarNumero(texto) {
-  let d = String(texto).replace(/\D/g, "");
-  if (d.length === 8 && /^[67]/.test(d)) d = "591" + d;
-  if (d.length < 10 || d.length > 15) {
-    throw new Error("Poné tu número de WhatsApp con el código de país (ej. +54 9 11 2345 6789); en Bolivia alcanzan los 8 números.");
-  }
-  return d;
-}
-
-/** La orden en curso guardada en este equipo ({token, orden, metodo, numero}) o null. */
+/** La orden en curso guardada en este equipo ({token, orden, metodo, whatsapp, texto}) o null. */
 export function compraPendiente() {
   try {
     const c = JSON.parse(leer(CLAVE_COMPRA) || "null");
@@ -277,22 +265,26 @@ export function compraPendiente() {
 
 export function olvidarCompra() { guardar(CLAVE_COMPRA, null); }
 
-/** «Ya pagué» (con internet): crea la orden en el bot y la guarda en el equipo. → {orden, token} */
-export async function pedirCompra(numero, metodo) {
-  numero = normalizarNumero(numero);
-  const d = await alBot("/pwa/compra", { codigo: codigoDispositivo(), numero, metodo });
-  if (!d.token || !d.orden) throw new Error("El servidor no respondió bien.");
-  guardar(CLAVE_COMPRA, JSON.stringify({ token: d.token, orden: d.orden, metodo, numero }));
+/** Datos de pago a la vista (con internet): el bot crea (o repite) la orden. → {orden, token, whatsapp, texto} */
+export async function pedirCompra(metodo) {
+  const d = await alBot("/pwa/compra", { codigo: codigoDispositivo(), metodo });
+  if (!d.token || !d.orden || !d.whatsapp || !d.texto) throw new Error("El servidor no respondió bien.");
   return d;
 }
 
+/** «Ya pagué»: la orden queda guardada en el equipo hasta que se resuelva. */
+export function guardarCompra(d, metodo) {
+  guardar(CLAVE_COMPRA, JSON.stringify({ token: d.token, orden: d.orden, metodo, whatsapp: d.whatsapp, texto: d.texto }));
+}
+
 /**
- * ¿Ya confirmaron el pago? → {estado: "pendiente" | "rechazada" | "sin_licencia" | "desconocida", orden} o
- * {estado: "aprobada", nombre} con la PRO ya activada en este equipo (y la orden olvidada). Error sin conexión.
+ * ¿Llegó el aviso / confirmaron el pago? → {estado: "esperando" | "pendiente" | "rechazada" | "sin_licencia" |
+ * "desconocida", orden} o {estado: "aprobada", nombre} con la PRO ya activada en este equipo (y la orden olvidada).
+ * Error sin conexión.
  */
 export async function consultarCompra(token) {
   const d = await alBot("/pwa/compra/estado", { token });
-  if (d.estado !== "aprobada") return { estado: d.estado || "pendiente", orden: d.orden };
+  if (d.estado !== "aprobada") return { estado: d.estado || "esperando", orden: d.orden };
   const r = await activarCon(d.clave, d.llave);
   olvidarCompra();
   return { estado: "aprobada", nombre: r.nombre, orden: d.orden };

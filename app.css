@@ -675,9 +675,6 @@ body.sin-scroll { overflow: hidden; }
 .compra-precio span { font-size: 13px; color: var(--gris); }
 .hoja .compra-tit { display: block; margin: 12px 0 6px; font-size: 15px; font-weight: 600; }
 .compra-tit span { font-weight: 400; color: var(--gris); }
-.compra-tel { border-radius: 22px; background: var(--fondo-ent); }
-.compra-tel input { text-align: left; padding-left: 16px; font: 500 17px system-ui, sans-serif; }
-.compra-tel.mal { border-color: var(--rojo); box-shadow: 0 0 0 2px rgb(224 0 0 / .15); }
 .compra .error-txt { margin: 8px 0 0; }
 .metodos { display: grid; gap: 8px; }
 .metodo {
@@ -699,6 +696,9 @@ body.sin-scroll { overflow: hidden; }
 }
 .btn-comprar:hover { background: var(--rojo-osc); }
 .btn-comprar:disabled { opacity: .6; }
+a.btn-comprar { display: flex; align-items: center; justify-content: center; text-decoration: none; }
+a.btn-comprar[aria-disabled="true"] { opacity: .5; pointer-events: none; }
+#pro-c-reenviar { margin: 4px 0 10px; }
 .compra-volver { display: block; margin: 12px auto 0; color: var(--gris); font-weight: 600; text-decoration: none; min-height: 40px; }
 .pago { text-align: center; }
 .hoja .pago .compra-tit { margin-top: 0; }
