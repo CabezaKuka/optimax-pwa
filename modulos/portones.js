@@ -102,8 +102,8 @@ export async function montar(cont) {
 
 // Celular y tablet (26-nov, Max, propuesta G): el dibujo arriba ocupa lo que queda de la pantalla y las opciones van en
 // una hoja que sube desde abajo, con una barra fija de 5 botones (Tipo · Medidas · Perfiles · Relleno · Lista) que lleva
-// a cada parte de la hoja (se puede deslizar entre todas). La hoja empieza abierta; la × o tocar otra vez el botón de la
-// parte que se ve la cierra (el dibujo crece). En la PC (≥ 900 px) queda como siempre: formulario | resultado.
+// a cada parte de la hoja (se puede deslizar entre todas). La hoja empieza cerrada (26-nov, Max: el dibujo grande de
+// entrada); la × o tocar otra vez el botón de la parte que se ve la cierra (el dibujo crece). En la PC (≥ 900 px) queda como siempre: formulario | resultado.
 const ANGOSTA = matchMedia("(max-width: 899px)");
 const SECCIONES = [
   ["tipo", "Tipo", '<path d="M3 5h18v14H3ZM12 5v14"/>'],
@@ -122,7 +122,7 @@ function acomodarVista() {
   else if (armada) medirVista();
 }
 function armarHoja() {
-  hojaAbierta = true;                                 // empieza abierta (Max)
+  hojaAbierta = false;                                // empieza cerrada (Max, 26-nov)
   const grupos = [...raiz.querySelectorAll(".b-datos > .grupo")];
   // lo que se mueve, en el orden en que vuelve a su lugar en la PC
   movidos = { datos: [...grupos, $("#p-holguras"), $("#p-taller")], res: [$("#p-demo"), $("#p-error"), $("#p-resultado"),
@@ -170,7 +170,6 @@ function armarHoja() {
   addEventListener("resize", alRedimensionar);
   document.body.classList.add("modo-hoja");
   abrirHoja(hojaAbierta, false);
-  marcarSec("tipo");
 }
 function desarmarHoja() {
   const datos = raiz.querySelector(".b-datos"), res = raiz.querySelector(".b-res");
@@ -191,6 +190,7 @@ function abrirHoja(si, medir = true) {
   hoja.classList.toggle("cerrada", !si);
   hoja.setAttribute("aria-hidden", String(!si));
   hoja.inert = !si;
+  if (!si) marcarSec(null);                           // cerrada: ningún botón encendido
   if (medir) medirVista();
 }
 function irA(k, desplazar = true) {
