@@ -550,7 +550,7 @@ function armarEventos() {
     if (!calc?.resultados[0]) return;
     abrir3D(calc.resultados[0], perfiles(), { espChapa: est.item.esp_chapa, piso: P.PORTONES.includes(est.item.tipo),
       pasantes: pasantes(), travAtras: travAtras(), relleno: est.item.relleno, cruce: est.item.cruce,
-      chapaTrav: est.item.n_trav > 0 ? est.item.chapa_trav : "atras" });
+      chapaTrav: est.item.n_trav > 0 ? est.item.chapa_trav : "atras", tipo: est.item.tipo });
   });
   $("#p-admin").addEventListener("click", abrirPerfiles);
   $("#hoja-perfiles").addEventListener("close", cerrarPerfiles);

@@ -11,6 +11,10 @@
 // barrotes, a elegir) y el otro detrás; cuadrícula / rombos cruzados, una familia (verticales / diagonal «/») adelante y
 // la otra detrás; chapa con los travesaños atrás, la chapa adelante; chapa a tope, paños y travesaños en una capa. Marco de ángulo (25-nov, Max): travesaños, relleno y chapa adentro de la L, apoyados detrás de
 // la cara (el cálculo ya los alarga hasta las alas). Unidades en mm, y hacia arriba (como la elevación).
+// Alrededor (25-nov, Max): «Nada / Columnas / Paredes» solo en portones (entorno3D). Columnas de 300 × 300 y paredes
+// de 150 × 1000, las dos 200 mm más altas que el portón, por fuera del vano. Batientes: en el plano del portón.
+// Corredizo: la hoja corre por detrás (adelante = la calle): columna o pared del cierre pegada a la hoja (el solape
+// queda detrás) y la del otro lado con el largo de la hoja abierta. Solo se ve en pantalla (no cambia el cálculo).
 // three.js (vendor/three.min.js) se carga recién al abrir la vista (visor común: modulos/visor3d.js).
 import { abrirVisor, cerrarVisor } from "./visor3d.js";
 
@@ -18,6 +22,33 @@ import { abrirVisor, cerrarVisor } from "./visor3d.js";
 const COLOR = { MARCO: "#a65507", TRAVESANO: "#d97706", BARRA: "#f4b54f", CHAPA: "#f7deb0" };
 const BORDE = "#3d2203";
 const REDONDOS = new Set(["tubo_red", "macizo_red"]);
+const MURO = "#e6dccb", MURO_BORDE = "#a39478";
+export const ENTORNOS = ["Nada", "Columnas", "Paredes"];
+const COLUMNA = 300, PARED = 150, LARGO_PARED = 1000, SOBRE = 200, HOLGURA = 20;
+let ultimoEntorno = "Columnas";                     // lo último elegido (mientras la página está abierta)
+
+/**
+ * Cajas de columnas y paredes alrededor del portón (sin three.js). R = resultado (vano, hojas); zAdelante = z de la
+ * cara de adelante del portón. {Columnas: [[x0, x1, y0, y1, z0, z1]…], Paredes: […]}.
+ */
+export function entorno3D(R, tipo, zAdelante = 20) {
+  const [W, H] = R.vano;
+  const alto = H + SOBRE;
+  const hojaMax = Math.max(W, ...R.hojas.map((h) => h[0] + h[2]));
+  if (tipo === "corredizo") {
+    const z0 = zAdelante + HOLGURA;                  // por delante de la hoja, que corre detrás
+    const abierta = hojaMax + 100;                   // la hoja abierta entra entera detrás de la pared
+    return {
+      Columnas: [[-COLUMNA, 0, 0, alto, z0, z0 + COLUMNA], [W, W + COLUMNA, 0, alto, z0, z0 + COLUMNA]],
+      Paredes: [[-Math.max(LARGO_PARED, abierta), 0, 0, alto, z0, z0 + PARED], [W, W + LARGO_PARED, 0, alto, z0, z0 + PARED]],
+    };
+  }
+  return {
+    Columnas: [[-COLUMNA, 0, 0, alto, -COLUMNA / 2, COLUMNA / 2], [W, W + COLUMNA, 0, alto, -COLUMNA / 2, COLUMNA / 2]],
+    Paredes: [[-LARGO_PARED, 0, 0, alto, -PARED / 2, PARED / 2], [W, W + LARGO_PARED, 0, alto, -PARED / 2, PARED / 2]],
+  };
+}
+
 const fmt = (v) => String(Math.round(v * 10) / 10).replace(".", ",");
 
 const profundidad = (p) => (p.forma === "tubo" || p.forma === "angulo" || p.forma === "macizo_cuad" || p.forma === "planchuela"
@@ -131,8 +162,30 @@ function eje(pts) {
  * perfiles = {nombre: Perfil}; opts.piso = true para dibujar el piso (portones; la reja de ventana va en la pared).
  */
 export async function abrir3D(R, perfiles, { espChapa = 1.5, piso = false, pasantes = false, travAtras = false,
-  relleno = "", cruce = "cruzadas", chapaTrav = "atras" } = {}) {
-  await abrirVisor({ piso, margen: 200, armar: (T, grupo, basura) => {
+  relleno = "", cruce = "cruzadas", chapaTrav = "atras", tipo = "" } = {}) {
+  let zAdelante = 20;
+  const entorno = piso ? {
+    opciones: ENTORNOS, inicial: ultimoEntorno, alCambiar: (op) => { ultimoEntorno = op; },
+    armar: (T, basura) => {
+      const mat = new T.MeshStandardMaterial({ color: MURO, roughness: 0.9, metalness: 0 });
+      const lin = new T.LineBasicMaterial({ color: MURO_BORDE });
+      basura.push(mat, lin);
+      const out = { Nada: null };
+      for (const [op, cajas] of Object.entries(entorno3D(R, tipo, zAdelante))) {
+        const g = new T.Group();
+        for (const [x0, x1, y0, y1, z0, z1] of cajas) {
+          const geo = new T.BoxGeometry(x1 - x0, y1 - y0, z1 - z0);
+          geo.translate((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
+          const ed = new T.EdgesGeometry(geo);
+          basura.push(geo, ed);
+          g.add(new T.Mesh(geo, mat), new T.LineSegments(ed, lin));
+        }
+        out[op] = g;
+      }
+      return out;
+    },
+  } : null;
+  await abrirVisor({ piso, margen: 200, entorno, clase: "of-herreria", armar: (T, grupo, basura) => {
     const mats = {}, lineas = new T.LineBasicMaterial({ color: BORDE });
     basura.push(lineas);
     const material = (c) => {
@@ -151,6 +204,7 @@ export async function abrir3D(R, perfiles, { espChapa = 1.5, piso = false, pasan
       grupo.add(m, new T.LineSegments(ed, lineas));
     };
     const { piezas: lista, n, aviso } = piezas3D(R, perfiles, { espChapa, pasantes, travAtras, relleno, cruce, chapaTrav });
+    zAdelante = Math.max(0, ...lista.map((pz) => (pz.tipo === "cilindro" ? pz.z + pz.d / 2 : pz.z1)));
     const Y = new T.Vector3(0, 1, 0);
     for (const pz of lista) {
       if (pz.tipo === "extruir") {

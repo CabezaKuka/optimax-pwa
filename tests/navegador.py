@@ -234,8 +234,9 @@ def barras_demo(pg, base, cap):
     pg.wait_for_selector(".inicio")
 
 
-def ver_3d(pg, que, cap=None, nombre=None):
-    """Abre la vista 3D del portón, controla que dibuje todas las piezas y la cierra."""
+def ver_3d(pg, que, cap=None, nombre=None, entorno=None):
+    """Abre la vista 3D del portón, controla que dibuje todas las piezas y la cierra. entorno = opción a elegir
+    («Nada / Columnas / Paredes», solo portones) o None (reja de ventana: sin esos botones)."""
     n2d = pg.evaluate("document.querySelectorAll('#p-dibujo svg polygon, #p-dibujo svg path.p-forma').length")
     pg.click("#p-3d")
     pg.wait_for_selector(".p-3d[data-piezas]", timeout=15000)
@@ -243,6 +244,14 @@ def ver_3d(pg, que, cap=None, nombre=None):
     n3d = int(pg.get_attribute(".p-3d", "data-piezas"))
     control(n3d > 0 and pg.locator(".p-3d canvas").count() == 1 and pg.locator(".p-3d .error-txt").count() == 0,
             f"{que}: vista 3D con {n3d} piezas")
+    if entorno is None:
+        control(pg.locator(".p-3d-entorno").count() == 0, f"{que}: sin columnas ni paredes (va en la pared)")
+    else:
+        control(pg.locator(".p-3d-entorno label").count() == 3 and
+                pg.get_attribute(".p-3d", "data-entorno") in ("Nada", "Columnas", "Paredes"), f"{que}: botones Nada / Columnas / Paredes")
+        pg.click(f".p-3d-entorno label:has-text('{entorno}')")
+        control(pg.get_attribute(".p-3d", "data-entorno") == entorno and pg.locator(".p-3d .error-txt").count() == 0,
+                f"{que}: alrededor «{entorno}»")
     pg.click(".p-3d-frente")
     pg.mouse.move(195, 420)
     pg.mouse.down()
@@ -685,7 +694,7 @@ def pro(b, base, cap):
     control(any(u.endswith("/pro/portones/tipos.js") for u in pedidos), "portones PRO: carga los tipos de portón")
     control(pg.inner_text("#p-resumen .dato-v >> nth=1") == "15", "portones PRO: 15 barras con el optimizador completo (el rápido da 16)")
     control("Pasador de piso" in pg.inner_text("#p-datos"), "portones PRO: herrajes del portón")
-    ver_3d(pg, "portones PRO (batiente 2 hojas)", cap, "pro_portones_3d")
+    ver_3d(pg, "portones PRO (batiente 2 hojas)", cap, "pro_portones_3d", "Columnas")
     pg.click("summary:has-text('Corte y costos')")
     pg.fill("#p-sold", "15")
     pg.fill("#p-pint", "40")
@@ -702,10 +711,10 @@ def pro(b, base, cap):
     pg.click(".p-tarjeta[data-v=corredizo]")
     pg.select_option("#p-perfil_relleno", "Macizo redondo Ø12")
     pg.wait_for_timeout(1500)
-    ver_3d(pg, "portones PRO (corredizo, macizo redondo)", cap, "pro_corredizo_3d")
+    ver_3d(pg, "portones PRO (corredizo, macizo redondo)", cap, "pro_corredizo_3d", "Paredes")
     pg.click(".p-tarjeta[data-v=chapa]")
     pg.wait_for_timeout(1500)
-    ver_3d(pg, "portones PRO (chapa ciega)", cap, "pro_chapa_3d")
+    ver_3d(pg, "portones PRO (chapa ciega)", cap, "pro_chapa_3d", "Nada")
     pg.goto(base + "?pro=0")
     pg.wait_for_selector(".inicio")
     control(pg.is_visible(".btn-pro"), "?pro=0: vuelve la DEMO")

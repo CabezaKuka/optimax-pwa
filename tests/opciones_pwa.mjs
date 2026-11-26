@@ -1,9 +1,10 @@
 // Opciones propias de la PWA en Rejas y portones (25-nov, Max; la PC todavía no las tiene):
 //   chapa ciega con los travesaños atrás (una chapa) o a tope (un paño por tramo); cuadrícula y rombos cruzados o en
-//   el mismo plano (una familia en tramos); botón «Frente» (qué medida del perfil va de frente).
+//   el mismo plano (una familia en tramos); botón «Frente» (qué medida del perfil va de frente); columnas y paredes
+//   alrededor del portón en el 3D.
 //   node tests/opciones_pwa.mjs
 import * as P from "../portones/motor.js";
-import { piezas3D } from "../modulos/portones3d.js";
+import { piezas3D, entorno3D, ENTORNOS } from "../modulos/portones3d.js";
 
 let bien = 0, mal = 0;
 const ok = (que, cond, extra = "") => { if (cond) bien++; else { mal++; console.log(`MAL ${que} ${extra}`); } };
@@ -108,6 +109,22 @@ ok("frente 3D: marco 40×20 sin girar, 20 de profundidad", Math.abs(prof(sinG) -
 ok("frente 3D: marco girado, 40 de profundidad", Math.abs(prof(mg) - 40) < 1e-9, prof(mg));
 const ang = calc({ ...base, perfil_marco: "Ángulo 50×30×3", frente_marco: "b" });
 ok("frente: ángulo 50×30 girado = cara de 30, travesaño 1200 − 2 × 30 + 2 × (30 − 3)", lg(ang, "travesaño").largo === 1194, lg(ang, "travesaño").largo);
+
+// 3D: columnas y paredes alrededor (25-nov, Max)
+ok("entorno: Nada / Columnas / Paredes", ENTORNOS.join() === "Nada,Columnas,Paredes");
+const Rb = { vano: [3000, 2000], hojas: [[10, 30, 1485, 1970, "Hoja izq."], [1505, 30, 1485, 1970, "Hoja der."]] };
+const eb = entorno3D(Rb, "batiente_2", 20);
+const fuera = (cs, W) => cs.length === 2 && cs[0][1] <= 1e-9 && cs[1][0] >= W - 1e-9;
+ok("entorno batiente: columnas 300 × 300 a los costados, 200 más altas", fuera(eb.Columnas, 3000) &&
+  eb.Columnas.every((c) => c[1] - c[0] === 300 && c[5] - c[4] === 300 && c[3] === 2200 && c[2] === 0 && c[4] === -150), JSON.stringify(eb.Columnas));
+ok("entorno batiente: paredes de 150 × 1000 en el plano del portón", fuera(eb.Paredes, 3000) &&
+  eb.Paredes.every((c) => c[1] - c[0] === 1000 && c[5] - c[4] === 150 && c[3] === 2200 && c[4] === -75), JSON.stringify(eb.Paredes));
+const Rc = { vano: [3000, 2000], hojas: [[0, 30, 3150, 1970, "Hoja"]] };
+const ec = entorno3D(Rc, "corredizo", 20);
+ok("entorno corredizo: columnas y paredes por delante de la hoja (corre detrás)",
+  [...ec.Columnas, ...ec.Paredes].every((c) => c[4] >= 20 - 1e-9) && fuera(ec.Columnas, 3000) && fuera(ec.Paredes, 3000));
+ok("entorno corredizo: el solape (3000 a 3150) queda detrás de la columna del cierre", ec.Columnas[1][0] === 3000 && ec.Columnas[1][1] >= 3150);
+ok("entorno corredizo: la pared del otro lado tapa la hoja abierta", -ec.Paredes[0][0] >= 3150, ec.Paredes[0][0]);
 
 // por defecto, lo de siempre (lo controla la comparación con la PC)
 ok("por defecto: chapa atrás y cruzadas", P.ITEM_DEF.chapa_trav === "atras" && P.ITEM_DEF.cruce === "cruzadas");
