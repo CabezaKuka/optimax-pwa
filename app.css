@@ -342,6 +342,11 @@ body.sin-scroll { overflow: hidden; }
 
 /* ------------------------------------------------------------ medidas */
 .medidas { padding: 18px 16px 4px; }
+/* oculto a la vista, lo leen los lectores de pantalla (títulos que ya están al lado de «← Inicio») */
+.solo-lector {
+  position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
 .titulo-figura { margin: 0 0 10px; font-size: 22px; line-height: 1.15; font-weight: 700; }
 #form { display: flex; flex-direction: column; }
 
@@ -411,7 +416,7 @@ body.sin-scroll { overflow: hidden; }
 @media (min-width: 900px) {
   .app-barras { grid-template-columns: 400px minmax(0, 1fr); grid-template-rows: auto; }
   .b-datos, .b-res { padding: 0; }
-  .b-res { padding-top: 40px; }
+  .b-res { padding-top: 0; }                         /* 26-nov: sin el título repetido, el resultado arranca arriba */
 }
 .sub { margin: 22px 0 6px; font-size: 17px; font-weight: 700; display: flex; align-items: center; gap: 8px; color: var(--of); }
 .sub::before { content: ""; flex: none; width: 8px; height: 8px; border-radius: 2px; background: var(--of); }
@@ -542,9 +547,57 @@ body.sin-scroll { overflow: hidden; }
 .p-plegable .campo:not(:has(~ .campo:not([hidden]))) { border-bottom: 0; }
 .p-plegable .entrada { background: var(--fondo-ent); }
 .precio.bloq .nota { display: none; }
+/* botón 3D destacado (26-nov, Max: «es el que más impacta») */
+.btn-3d {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 38px; padding: 0 14px; border: 0; border-radius: 19px;
+  background: var(--of); color: #fff; font-weight: 700; font-size: 15px; box-shadow: 0 2px 8px rgb(201 106 5 / .35);
+}
+.btn-3d svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linejoin: round; }
+.btn-3d:active { filter: brightness(.93); }
+.btn-ampliar { display: inline-flex; align-items: center; gap: 5px; }
+.btn-ampliar svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
 .p-vista-arriba { margin: 0 0 14px; }
 .p-vista-arriba .p-elev { margin-top: 0; }
 .p-vista-arriba .aviso-demo, .p-vista-arriba .error-txt { margin-top: 0; }
+/* modo hoja (rejas y portones en el celular / tablet, propuesta G): dibujo arriba con el alto que queda; hoja de opciones
+   abajo, encima de una barra fija de 5 botones */
+.modo-hoja .pie { display: none; }
+.modo-hoja .p-vista-arriba { margin: 0; }
+.modo-hoja .p-vista-arriba .aviso-demo, .modo-hoja .p-vista-arriba .error-txt { margin-bottom: 6px; padding: 8px 10px; font-size: 14px; }
+.modo-hoja .p-elev { display: flex; flex-direction: column; height: var(--p-elev-h, 320px); box-sizing: border-box; }
+.modo-hoja .p-dibujo { flex: 1; min-height: 0; display: grid; place-items: center; overflow: hidden; }
+.modo-hoja .p-elev figcaption { display: none; }
+.modo-hoja .p-elev-cab { flex-wrap: nowrap; gap: 8px; }
+.modo-hoja .p-luz { flex: 1; min-width: 0; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.modo-hoja .p-amp-txt { display: none; }
+.modo-hoja .btn-ampliar { padding: 0 9px; }
+.p-hoja {
+  position: fixed; z-index: 25; left: 0; right: 0; bottom: calc(62px + env(safe-area-inset-bottom));
+  height: min(44dvh, 420px); max-width: 760px; margin: 0 auto; display: flex; flex-direction: column;
+  background: var(--hoja); border-radius: 20px 20px 0 0; box-shadow: 0 -8px 24px rgb(15 20 26 / .16);
+  transition: transform .22s ease-out;
+}
+.p-hoja.cerrada { transform: translateY(calc(100% + 70px)); }
+@media (prefers-reduced-motion: reduce) { .p-hoja { transition: none; } }
+.p-hoja-cab { position: relative; flex: none; height: 26px; }
+.p-hoja-agarre { position: absolute; left: 50%; top: 8px; width: 40px; height: 4px; margin-left: -20px; border-radius: 2px; background: var(--borde-ent); }
+.p-hoja-cab .cerrar { position: absolute; right: 8px; top: -4px; margin: 0; }
+.p-hoja-cuerpo { position: relative; flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0 14px 18px; }
+.p-hoja-cuerpo .grupo { margin-top: 0; }
+.p-sec + .p-sec { margin-top: 12px; }
+.p-hoja-nav {
+  position: fixed; z-index: 26; left: 0; right: 0; bottom: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr));
+  height: calc(62px + env(safe-area-inset-bottom)); padding-bottom: env(safe-area-inset-bottom); box-sizing: border-box;
+  background: var(--hoja); border-top: 1px solid var(--linea);
+}
+.p-hoja-nav button {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border: 0; background: none;
+  color: var(--gris); font-size: 12px; font-weight: 600;
+}
+.p-hoja-nav svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.p-hoja-nav button[aria-current="true"] { color: var(--of-texto, var(--of)); font-weight: 700; }
+.modo-hoja.con-instalar { padding-bottom: 0; }
+.modo-hoja .instalar { bottom: calc(70px + env(safe-area-inset-bottom)); z-index: 30; }
 .p-elev { margin: 14px 0 0; background: var(--hoja); border-radius: var(--radio-g); padding: 8px 8px 4px; box-shadow: 0 0 0 1px var(--linea); }
 .p-elev-cab { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .p-luz { flex: 1 1 auto; font: 600 15px var(--num); }
@@ -801,6 +854,14 @@ a.btn-comprar[aria-disabled="true"] { opacity: .5; pointer-events: none; }
 
 /* ------------------------------------------------------------ trabajos (proyectos) */
 .trabajo-barra { margin: 0 0 12px; }
+/* en el renglón de «← Inicio»: compacta, a la derecha (el nombre del trabajo se recorta con «…») */
+.migas .trabajo-barra { margin: 0 0 0 auto; min-width: 0; flex: 0 1 auto; }
+.migas .volver { flex: none; }
+.migas .trabajo-btn { min-height: 40px; padding: 0 10px 0 8px; gap: 6px; border-left-width: 1px; max-width: 46vw; }
+.migas .trabajo-btn .t-ico, .migas .trabajo-btn .t-ico svg { width: 22px; height: 22px; }
+.migas .t-rot { display: none; }
+.migas .t-nom { font-size: 14px; font-weight: 600; }
+.migas-mod { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .trabajo-btn {
   display: flex; align-items: center; gap: 10px; width: 100%; min-height: 52px; padding: 8px 12px;
   border: 1px solid var(--linea); border-left: 5px solid var(--of); border-radius: var(--radio-g); background: var(--hoja);

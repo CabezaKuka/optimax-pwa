@@ -31,6 +31,14 @@ export const PORTONES = ["batiente_1", "batiente_2", "corredizo"];
 export const DEMO_TIPOS = ["reja_ventana"];
 export const DEMO_LADOS = [1500.0, 1000.0];
 export const DEMO_MUESTRA = { tipo: "reja_ventana", nombre: "Reja de ventana", ancho: 800.0, alto: 800.0 };   // 26-nov: 800 × 800 (Max)
+// Medidas de muestra por tipo (26-nov, Max: reja 800 × 800, los portones siempre 3000 × 2000): al cambiar de tipo, si
+// las medidas siguen siendo las de muestra del tipo anterior, pasan a las del nuevo; si las cambiaron, quedan.
+export const MEDIDAS_MUESTRA = { reja_ventana: [800, 800], batiente_1: [3000, 2000], batiente_2: [3000, 2000], corredizo: [3000, 2000] };
+export function medidasAlCambiarTipo(it, tipo) {
+  const antes = MEDIDAS_MUESTRA[it.tipo], nuevas = MEDIDAS_MUESTRA[tipo];
+  if (!antes || !nuevas || Number(it.ancho) !== antes[0] || Number(it.alto) !== antes[1]) return null;
+  return { ancho: nuevas[0], alto: nuevas[1] };
+}
 
 export const ITEM_DEF = {
   nombre: "Portón", cantidad: 1, tipo: "batiente_2", ancho: 3000.0, alto: 2000.0,

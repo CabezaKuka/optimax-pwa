@@ -71,7 +71,7 @@ export function desmontar() {
 const PLANTILLA = `
 <div class="app app-barras">
   <section class="b-datos" aria-label="Barra y piezas">
-    <h1 class="titulo-figura">Barras y tubos</h1>
+    <h1 class="titulo-figura solo-lector">Barras y tubos</h1>
     <div class="grupo">
     <h2 class="sub">Barra</h2>
     <div class="campo"><label class="rotulo" for="b-largo">Largo de la barra</label>

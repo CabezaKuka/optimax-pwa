@@ -34,6 +34,7 @@ async function ir() {
   pantalla.innerHTML = "";
   window.scrollTo(0, 0);
   document.body.classList.toggle("en-inicio", destino === "inicio");   // el pie, solo en los módulos
+  for (const b of document.querySelectorAll("#migas .trabajo-barra")) b.remove();   // la del módulo anterior
   if (destino === "inicio") {
     actual = { id: "inicio", mod: inicio };
     document.title = "optiMAX · Herramientas para el taller";

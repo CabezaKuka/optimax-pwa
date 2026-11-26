@@ -100,26 +100,139 @@ export async function montar(cont) {
   if (salidaPdf) activarBoton($("#p-pdf"), "Imprimir o guardar en PDF", guardarPdf);
 }
 
-// Celular y tablet (26-nov, Max: «como en los desarrollos, se ve de entrada qué hace»): el dibujo (con el aviso de la
-// DEMO y los errores) sube arriba del formulario, después de «Trabajo»; en la PC queda en la columna de la derecha.
+// Celular y tablet (26-nov, Max, propuesta G): el dibujo arriba ocupa lo que queda de la pantalla y las opciones van en
+// una hoja que sube desde abajo, con una barra fija de 5 botones (Tipo · Medidas · Perfiles · Relleno · Lista) que lleva
+// a cada parte de la hoja (se puede deslizar entre todas). La hoja empieza abierta; la × o tocar otra vez el botón de la
+// parte que se ve la cierra (el dibujo crece). En la PC (≥ 900 px) queda como siempre: formulario | resultado.
 const ANGOSTA = matchMedia("(max-width: 899px)");
+const SECCIONES = [
+  ["tipo", "Tipo", '<path d="M3 5h18v14H3ZM12 5v14"/>'],
+  ["medidas", "Medidas", '<path d="M3 17h18M3 17v-3M21 17v-3M7 17v-2M12 17v-3M17 17v-2"/>'],
+  ["perfiles", "Perfiles", '<path d="M5 5h14v14H5Z"/><path d="M8 8h8v8H8Z"/>'],
+  ["relleno", "Relleno", '<path d="M4 4h16v16H4ZM9 4v16M14 4v16"/>'],
+  ["lista", "Lista", '<path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/>'],
+];
+let movidos = null, hojaAbierta = true, sinEspiar = 0, reloj2 = null;
+const mover = (n, destino) => { if (n) destino.append(n); };
 function acomodarVista() {
-  const fig = $(".p-elev"), demo = $("#p-demo"), err = $("#p-error");
-  if (!fig) return;
-  if (ANGOSTA.matches) {
-    let lugar = $("#p-vista-arriba");
-    if (!lugar) {
-      lugar = document.createElement("div");
-      lugar.id = "p-vista-arriba";
-      lugar.className = "p-vista-arriba";
-      lugar.setAttribute("aria-live", "polite");
-      (raiz.querySelector(".b-datos .trabajo-barra") || raiz.querySelector(".b-datos .titulo-figura")).after(lugar);
-    }
-    lugar.append(demo, err, fig);
-  } else {
-    $("#p-resultado").before(demo, err);
-    $("#p-resumen").after(fig);
+  if (!$(".p-elev")) return;
+  const armada = !!$("#p-hoja");
+  if (ANGOSTA.matches && !armada) armarHoja();
+  else if (!ANGOSTA.matches && armada) desarmarHoja();
+  else if (armada) medirVista();
+}
+function armarHoja() {
+  hojaAbierta = true;                                 // empieza abierta (Max)
+  const grupos = [...raiz.querySelectorAll(".b-datos > .grupo")];
+  // lo que se mueve, en el orden en que vuelve a su lugar en la PC
+  movidos = { datos: [...grupos, $("#p-holguras"), $("#p-taller")], res: [$("#p-demo"), $("#p-error"), $("#p-resultado"),
+    $(".b-res .acciones"), $(".b-res .verificar")], fig: $(".p-elev") };
+  const vista = document.createElement("div");
+  vista.id = "p-vista-arriba";
+  vista.className = "p-vista-arriba";
+  vista.setAttribute("aria-live", "polite");
+  $(".b-datos .titulo-figura").after(vista);
+  mover($("#p-demo"), vista);
+  mover($("#p-error"), vista);
+  mover($(".p-elev"), vista);
+  const hoja = document.createElement("section");
+  hoja.id = "p-hoja";
+  hoja.className = "p-hoja";
+  hoja.setAttribute("aria-label", "Opciones de la reja o el portón");
+  hoja.innerHTML = `<div class="p-hoja-cab"><span class="p-hoja-agarre" aria-hidden="true"></span>
+    <button type="button" class="cerrar" id="p-hoja-cerrar" aria-label="Cerrar las opciones">×</button></div>
+    <div class="p-hoja-cuerpo" id="p-hoja-cuerpo"></div>`;
+  const nav = document.createElement("nav");
+  nav.id = "p-hoja-nav";
+  nav.className = "p-hoja-nav";
+  nav.setAttribute("aria-label", "Opciones");
+  nav.innerHTML = SECCIONES.map(([k, rot, d]) => `<button type="button" data-sec="${k}" aria-controls="p-hoja">
+    <svg viewBox="0 0 24 24" aria-hidden="true">${d}</svg><span>${rot}</span></button>`).join("");
+  raiz.append(hoja, nav);
+  const cuerpo = $("#p-hoja-cuerpo");
+  const partes = { tipo: [grupos[0]], medidas: [grupos[1], $("#p-holguras")], perfiles: [grupos[2]], relleno: [grupos[3]],
+    lista: [$("#p-resultado"), $("#p-taller"), $(".b-res .acciones"), $(".b-res .verificar")] };
+  for (const [k] of SECCIONES) {
+    const sec = document.createElement("div");
+    sec.className = "p-sec";
+    sec.dataset.sec = k;
+    cuerpo.append(sec);
+    for (const n of partes[k]) mover(n, sec);
   }
+  nav.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-sec]");
+    if (!b) return;
+    if (hojaAbierta && b.getAttribute("aria-current") === "true") { abrirHoja(false); return; }
+    irA(b.dataset.sec);
+  });
+  $("#p-hoja-cerrar").addEventListener("click", () => abrirHoja(false));
+  cuerpo.addEventListener("scroll", espiar, { passive: true });
+  addEventListener("resize", alRedimensionar);
+  document.body.classList.add("modo-hoja");
+  abrirHoja(hojaAbierta, false);
+  marcarSec("tipo");
+}
+function desarmarHoja() {
+  const datos = raiz.querySelector(".b-datos"), res = raiz.querySelector(".b-res");
+  for (const n of movidos.datos) if (n) datos.append(n);
+  for (const n of movidos.res) if (n) res.append(n);
+  $("#p-resumen").after(movidos.fig);
+  movidos = null;
+  for (const id of ["#p-hoja", "#p-hoja-nav", "#p-vista-arriba"]) $(id)?.remove();
+  removeEventListener("resize", alRedimensionar);
+  document.body.classList.remove("modo-hoja");
+  raiz.style.removeProperty("--p-elev-h");
+  dibujar();
+}
+function abrirHoja(si, medir = true) {
+  hojaAbierta = si;
+  const hoja = $("#p-hoja");
+  if (!hoja) return;
+  hoja.classList.toggle("cerrada", !si);
+  hoja.setAttribute("aria-hidden", String(!si));
+  hoja.inert = !si;
+  if (medir) medirVista();
+}
+function irA(k, desplazar = true) {
+  if (!hojaAbierta) abrirHoja(true);
+  marcarSec(k);
+  if (!desplazar) return;
+  const cuerpo = $("#p-hoja-cuerpo"), sec = raiz.querySelector(`.p-sec[data-sec="${k}"]`);
+  sinEspiar = Date.now() + 700;                       // mientras se desliza, no cambia el botón marcado
+  cuerpo.scrollTo({ top: sec.offsetTop - 6, behavior: "smooth" });
+}
+function marcarSec(k) {
+  for (const b of raiz.querySelectorAll("#p-hoja-nav [data-sec]")) b.setAttribute("aria-current", String(b.dataset.sec === k));
+}
+function espiar() {
+  if (Date.now() < sinEspiar) return;
+  const cuerpo = $("#p-hoja-cuerpo");
+  let k = "tipo";
+  for (const sec of raiz.querySelectorAll(".p-sec")) if (sec.offsetTop - 30 <= cuerpo.scrollTop) k = sec.dataset.sec;
+  if (cuerpo.scrollTop + cuerpo.clientHeight >= cuerpo.scrollHeight - 4) k = "lista";
+  marcarSec(k);
+}
+// alto del dibujo = lo que queda entre su borde de arriba y la hoja (o la barra, con la hoja cerrada)
+function medirVista() {
+  const fig = $(".p-elev"), nav = $("#p-hoja-nav"), hoja = $("#p-hoja");
+  if (!fig || !nav || !hoja) return;
+  const arriba = fig.getBoundingClientRect().top + window.scrollY;
+  const abajo = nav.getBoundingClientRect().height + (hojaAbierta ? hoja.getBoundingClientRect().height : 0);
+  raiz.style.setProperty("--p-elev-h", `${Math.max(170, Math.floor(window.innerHeight - arriba - abajo - 8))}px`);
+}
+function alRedimensionar() {
+  clearTimeout(reloj2);
+  reloj2 = setTimeout(medirVista, 120);
+}
+// tocar una pieza en el dibujo (con la hoja): abre la hoja en la lista, con el renglón a la vista
+function verEnLista() {
+  if (!$("#p-hoja") || !sel) return;
+  const li = raiz.querySelector(`#p-lista li[data-m="${sel}"]`), cuerpo = $("#p-hoja-cuerpo");
+  if (!li) return;
+  irA("lista", false);
+  sinEspiar = Date.now() + 700;
+  const y = li.getBoundingClientRect().top - cuerpo.getBoundingClientRect().top + cuerpo.scrollTop;
+  cuerpo.scrollTo({ top: y - 60, behavior: "smooth" });
 }
 
 function guardarPdf() {
@@ -136,6 +249,9 @@ function guardarPdf() {
 
 export function desmontar() {
   ANGOSTA.removeEventListener("change", acomodarVista);
+  removeEventListener("resize", alRedimensionar);
+  document.body.classList.remove("modo-hoja");
+  movidos = null;
   clearTimeout(reloj);
   cerrarSalida();
   observador?.disconnect();
@@ -167,7 +283,7 @@ const perfilSel = (k, rot) => `<div class="campo campo-perfil" data-k="${k}"><la
 const PLANTILLA = `
 <div class="app app-barras app-portones">
   <section class="b-datos" aria-label="Datos de la reja o el portón">
-    <h1 class="titulo-figura">Rejas y portones</h1>
+    <h1 class="titulo-figura solo-lector">Rejas y portones</h1>
     <div class="grupo">
     <h2 class="sub">Tipo</h2>
     <div class="p-tarjetas p-tipos" id="p-tipos"></div>
@@ -218,7 +334,7 @@ const PLANTILLA = `
     </div>
     <details class="p-plegable" id="p-holguras"><summary>Holguras del portón</summary>
       ${campo("holg_lat")}${campo("holg_centro")}${campo("luz_piso")}${campo("solape")}</details>
-    <details class="p-plegable"><summary>Corte y costos del taller</summary>
+    <details class="p-plegable" id="p-taller"><summary>Corte y costos del taller</summary>
       <div class="campo"><label class="rotulo" for="p-corte">Ancho del corte de sierra</label>
         <span class="entrada"><input id="p-corte" type="text" inputmode="decimal" spellcheck="false"><span class="unidad">mm</span></span></div>
       <div class="precio" id="p-costos">
@@ -243,8 +359,8 @@ const PLANTILLA = `
         <div class="p-elev-cab">
           <span class="p-luz" id="p-luz"></span>
           <label class="tilde tilde-chica"><input type="checkbox" id="p-cotas"> Cotas</label>
-          <button type="button" class="btn-sec btn-chico" id="p-3d">3D</button>
-          <button type="button" class="btn-sec btn-chico" id="p-ampliar">Ampliar</button>
+          <button type="button" class="btn-3d" id="p-3d"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l8.5 4.75v9.5L12 21.5l-8.5-4.75v-9.5Z"/><path d="M3.5 7.25L12 12l8.5-4.75M12 12v9.5"/></svg>Ver en 3D</button>
+          <button type="button" class="btn-sec btn-chico btn-ampliar" id="p-ampliar" aria-label="Ampliar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg><span class="p-amp-txt">Ampliar</span></button>
         </div>
         <div class="p-dibujo" id="p-dibujo"></div>
         <figcaption class="nota">Tocá una pieza para ver dónde va y su renglón en la lista.</figcaption>
@@ -567,7 +683,9 @@ function armarEventos() {
     if (t) {
       const { clave, v } = t.dataset;
       if (clave === "tipo" && !pro && !P.DEMO_TIPOS.includes(v)) { abrirPro("portones"); return; }
+      const med = clave === "tipo" ? P.medidasAlCambiarTipo(est.item, v) : null;   // medidas de muestra del tipo
       est.item[clave] = v;
+      if (med) { Object.assign(est.item, med); ponerValores(); }
       if (clave === "tipo" && est.item.nombre === "") est.item.nombre = P.TEXTO[v];
       if (P.esDoble(est.item)) { est.item.n_trav = 2; $("#p-n_trav").textContent = 2; }   // el doble vuelve a valer
       habilitar();
@@ -589,7 +707,11 @@ function armarEventos() {
     const d = $("#hoja-perfiles");
     if (e.target === d) { d.close(); return; }
     const m = e.target.closest("[data-m]");
-    if (m && !e.target.closest("#hoja-perfiles")) seleccionar(m.dataset.m);
+    if (m && !e.target.closest("#hoja-perfiles")) {
+      const enDibujo = !!e.target.closest("#p-dibujo");   // antes: seleccionar() rehace el dibujo
+      seleccionar(m.dataset.m);
+      if (enDibujo) verEnLista();
+    }
   });
   for (const k of ["perfil_marco", "perfil_trav", "perfil_relleno"]) {
     $(`#p-${k}`).addEventListener("change", (e) => { est.item[k] = e.target.value; ponerFrente(); programar(0); });
@@ -635,11 +757,14 @@ function armarEventos() {
   });
   $("#p-admin").addEventListener("click", abrirPerfiles);
   $("#hoja-perfiles").addEventListener("close", cerrarPerfiles);
-  let ancho = 0;
+  let ancho = 0, alto = 0;
   observador = new ResizeObserver(() => {
     const d = raiz.querySelector("#p-dibujo");
     if (!d || !d.isConnected) return;
-    if (Math.abs(d.clientWidth - ancho) > 8) { ancho = d.clientWidth; dibujar(); }
+    const conHoja = !!raiz.querySelector("#p-hoja");
+    if (Math.abs(d.clientWidth - ancho) > 8 || (conHoja && Math.abs(d.clientHeight - alto) > 8)) {
+      ancho = d.clientWidth; alto = d.clientHeight; dibujar();
+    }
   });
   observador.observe($("#p-dibujo"));
 }
@@ -907,6 +1032,7 @@ function mostrar() {
   err.hidden = !c.errores.length;
   $("#p-resultado").hidden = !R;
   $(".p-elev").hidden = !R;                           // en el celular el dibujo está fuera de #p-resultado
+  medirVista();
   if (!R) { $("#p-opt").hidden = true; return; }
   const marcas = c.filas.length, perfs = c.grupos.length;
   $("#p-resumen").innerHTML =
@@ -930,8 +1056,9 @@ function dibujar() {
   if (!calc || !calc.resultados[0]) return;
   const cont = $("#p-dibujo");
   const w = Math.max(cont.clientWidth, 240);
+  const conHoja = !!raiz.querySelector("#p-hoja");     // celular / tablet: el alto lo da el lugar que deja la hoja
   cont.innerHTML = svgElevacion(calc.resultados[0], {
-    anchoPx: w, altoMax: Math.max(300, Math.min(window.innerHeight * 0.62, 640)), marcas: calc.marcas, seleccion: sel, cotas: !!est.cotas,
+    anchoPx: w, altoMax: conHoja ? Math.max(120, cont.clientHeight) : Math.max(300, Math.min(window.innerHeight * 0.62, 640)), marcas: calc.marcas, seleccion: sel, cotas: !!est.cotas,
     travAtras: travAtras(),
   });
 }

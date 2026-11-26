@@ -33,7 +33,7 @@ export const ENTORNOS = ["Nada", "Columnas", "Paredes"];
 export const ENTORNOS_REJA = ["Nada", "Pared"];
 const PANO = 600;                                   // pared alrededor del hueco de la ventana
 const COLUMNA = 300, PARED = 150, LARGO_PARED = 1000, SOBRE = 200, HOLGURA = 20;
-let ultimoEntorno = "Columnas";                     // lo último elegido (mientras la página está abierta)
+let ultimoEntorno = "Paredes";                      // lo último elegido (mientras la página está abierta); 26-nov: paredes
 let ultimoReja = "Pared";
 
 /**
