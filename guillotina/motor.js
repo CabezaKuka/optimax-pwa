@@ -3,7 +3,8 @@
 //
 // Por plancha se arma un árbol de cortes: cada corte atraviesa por completo el rectángulo que corta y lo parte en
 // dos, así lo que sale se puede cortar en una cizalla. Se prueban órdenes y reglas de colocación y se queda con la
-// solución de menos planchas; entre esas, la de menos cortes que deje un retazo de al menos 95 % del mejor.
+// solución de menos planchas; entre esas, la de menos cortes que deje un retazo de al menos 95 % del mejor. Además
+// (solo PWA) se arman soluciones por columnas / filas de lado a lado, que dejan el sobrante junto (ver más abajo).
 // Medidas: la plancha es «largo» (X) × «ancho» (Y). Una pieza es «alto» × «largo»: sin girar, su largo va sobre el X
 // de la plancha (la veta corre a lo largo). El ancho de corte se pierde en cada corte; el refilado es el margen que
 // se descarta en los cuatro bordes.
@@ -267,6 +268,140 @@ function armarRes(planchas, piezas, dims, W, H, k, trim, maxc, rotar, avisos, to
   };
 }
 
+// ------------------------------------------------------------------ armado por columnas (solo PWA, 25-nov)
+// El armado de arriba pone cada pieza en una esquina de un hueco y el corte sigue el borde de esa pieza: nunca arma
+// un corte de lado a lado que deje todas las piezas de un lado y el resto entero del otro. Este arma en 3 etapas:
+// columnas de todo el alto de la plancha (cortes verticales), cada columna en franjas (horizontales) y cada franja en
+// piezas (verticales); lo que sobra queda junto, al final. También por filas (lo mismo girado). Las soluciones se
+// suman al frente y se elige igual que siempre. La PC todavía no lo tiene (pendiente).
+export const AJUSTES = { columnas: true };    // las pruebas contra la PC lo apagan
+const MAX_ANCHOS = 8;                          // anchos de franja que se prueban además del de la plancha
+
+/** Planchas armadas por columnas (o por filas si `T`: se arma con los ejes cambiados y se pasa a la plancha). */
+function porColumnas(items, W, H, k, maxc, rotar, T, giro, cw) {
+  const VW = T ? H : W, VH = T ? W : H;          // medidas en el armado (x = a lo ancho de las columnas)
+  // piezas en el armado: [idx, w, h]; giro: "tal" / "acostada" (w ≥ h) / "parada" (w ≤ h)
+  const ps = [];
+  for (const [idx, a, b] of items) {
+    let w = T ? b : a, h = T ? a : b;
+    if (rotar && ((giro === "acostada" && h > w + EPS) || (giro === "parada" && w > h + EPS))) [w, h] = [h, w];
+    if (w > VW + EPS || h > VH + EPS) {
+      if (!rotar || h > VW + EPS || w > VH + EPS) return null;
+      [w, h] = [h, w];
+    }
+    ps.push([idx, w, h]);
+  }
+  ps.sort((p, q) => q[2] - p[2] || q[1] - p[1] || p[0] - q[0]);
+  // franjas: el primero que entra (alto decreciente)
+  const franjas = [];
+  for (const p of ps) {
+    const f = franjas.find((s) => p[2] <= s.h + EPS && s.usado + k + p[1] <= Math.max(cw, s.usado) + EPS);
+    if (f) { f.usado += k + p[1]; f.ps.push(p); } else franjas.push({ h: p[2], usado: p[1], ps: [p] });
+  }
+  // columnas: franjas de ancho decreciente, la primera columna donde entra a lo alto
+  franjas.sort((s, t) => t.usado - s.usado || t.h - s.h);
+  const cols = [];
+  for (const f of franjas) {
+    const c = cols.find((c) => c.alto + k + f.h <= VH + EPS);
+    if (c) { c.alto += k + f.h; c.fs.push(f); } else cols.push({ w: f.usado, alto: f.h, fs: [f] });
+  }
+  // planchas: columnas de ancho decreciente, la primera plancha donde entra a lo ancho
+  const pls = [];
+  for (const c of cols) {
+    const pl = pls.find((p) => p.usado + k + c.w <= VW + EPS);
+    if (pl) { pl.usado += k + c.w; pl.cs.push(c); } else pls.push({ usado: c.w, cs: [c] });
+  }
+  // árbol de cortes: se arma en las coordenadas del armado (vx, vy) y los nodos quedan en las de la plancha
+  const mk = (x, y, w, h) => (T ? new Nodo(y, x, h, w) : new Nodo(x, y, w, h));
+  const vx = (n) => (T ? n.y : n.x), vy = (n) => (T ? n.x : n.y);
+  const ori = (o) => (T ? (o === "V" ? "H" : "V") : o);
+  const cortar = (n, o, linea, longitud, a, c) => Object.assign(n, { tipo: "corte", orient: ori(o), linea, longitud, hijos: [a, c] });
+  const real = new Map(items.map((it) => [it[0], it]));
+  const out = [];
+  for (const pl of pls) {
+    const raiz = mk(0, 0, VW, VH), libres = [], piezas = [];
+    let falla = false;
+    const libre = (x, y, w, h) => (w >= MIN_SOBRA && h >= MIN_SOBRA ? mk(x, y, w, h) : null);
+    // Parte el nodo n (esquina x0, y0 del armado) en tramos de las medidas dadas, a lo largo de x (o = "V") o de y
+    // (o = "H"); `largo` = lo que mide n en ese sentido, `alto` = lo que mide en el otro (= largo de cada corte).
+    const tramos = (n, x0, y0, largo, alto, medidas, o) => {
+      const r = [];
+      let cur = n, pos = 0;
+      for (const a of medidas) {
+        if (cur === null) { falla = true; return r; }
+        const resta = largo - pos;
+        if (resta - a > EPS) {
+          const t = o === "V" ? mk(x0 + pos, y0, a, alto) : mk(x0, y0 + pos, alto, a);
+          const rw = resta - a - k;
+          const resto = o === "V" ? libre(x0 + pos + a + k, y0, rw, alto) : libre(x0, y0 + pos + a + k, alto, rw);
+          cortar(cur, o, (o === "V" ? x0 : y0) + pos + a, alto, t, resto);
+          r.push(t);
+          cur = resto;
+          pos += a + k;
+        } else { r.push(cur); cur = null; pos = largo; }
+      }
+      if (cur) libres.push(cur);
+      return r;
+    };
+    const nc = tramos(raiz, 0, 0, VW, VH, pl.cs.map((c) => c.w), "V");
+    pl.cs.forEach((c, ic) => {
+      if (falla) return;
+      const xc = vx(nc[ic]);
+      const nf = tramos(nc[ic], xc, 0, VH, c.w, c.fs.map((f) => f.h), "H");
+      c.fs.forEach((f, jf) => {
+        if (falla) return;
+        const yf = vy(nf[jf]);
+        const np = tramos(nf[jf], xc, yf, c.w, f.h, f.ps.map((p) => p[1]), "V");
+        f.ps.forEach(([idx, w, h], kp) => {
+          if (falla) return;
+          let n = np[kp];
+          const xp = vx(n);
+          if (f.h - h > EPS) {
+            const p = mk(xp, yf, w, h);
+            const arriba = libre(xp, yf + h + k, w, f.h - h - k);
+            if (arriba) libres.push(arriba);
+            cortar(n, "H", yf + h, w, p, arriba);
+            n = p;
+          }
+          const [rw, rh] = T ? [h, w] : [w, h];
+          const it = real.get(idx);
+          const rot = Math.abs(it[1] - it[2]) > EPS && Math.abs(rw - it[1]) > EPS;
+          Object.assign(n, { tipo: "pieza", pieza: idx, rot, w: rw, h: rh, hijos: null });
+          piezas.push([idx, rw, rh, rot]);
+        });
+      });
+    });
+    if (falla) return null;
+    // control de la cizalla
+    const pila = [raiz];
+    while (pila.length) {
+      const n = pila.pop();
+      if (n && n.tipo === "corte") {
+        if (maxc > 0 && n.longitud > maxc + EPS) return null;
+        pila.push(...n.hijos);
+      }
+    }
+    out.push({ raiz, libres, piezas });
+  }
+  return out;
+}
+
+/** Suma al frente las soluciones por columnas y por filas (giros y anchos de franja distintos). */
+function correrColumnas(b) {
+  const { items, W, H, corte, maxCorte, rotar } = b.p;
+  const giros = rotar ? ["tal", "acostada", "parada"] : ["tal"];
+  for (const T of [false, true]) {
+    const VW = T ? H : W;
+    for (const giro of giros) {
+      const anchos = new Set([VW]);
+      const ws = [...new Set(items.flatMap(([, a, c]) => (rotar ? [a, c] : [T ? c : a])))].filter((w) => w < VW - EPS)
+        .sort((p, q) => q - p).slice(0, MAX_ANCHOS);
+      ws.forEach((w) => anchos.add(w));
+      for (const cw of anchos) sumar(b, porColumnas(items, W, H, corte, maxCorte, rotar, T, giro, cw));
+    }
+  }
+}
+
 // ------------------------------------------------------------------ búsqueda
 export const LLAVES = [(t) => t[1] * t[2], (t) => Math.max(t[1], t[2]), (t) => Math.min(t[1], t[2]),
   (t) => t[1], (t) => t[2], (t) => t[1] + t[2]];
@@ -329,7 +464,11 @@ export function nuevaBusqueda(p) {
 export function correr(b, m, r, orden) {
   const { W, H, corte, maxCorte, rotar } = b.p;
   b.corridas++;
-  const pls = empaquetar(orden, W, H, corte, maxCorte, rotar, m, r);
+  sumar(b, empaquetar(orden, W, H, corte, maxCorte, rotar, m, r));
+}
+
+/** Suma una solución (planchas o null) al frente de la búsqueda. */
+function sumar(b, pls) {
   if (pls === null) return;
   const [n, menosRetazo] = calidad(pls);
   if (b.nMin === null || n < b.nMin) { b.nMin = n; b.frente = []; }
@@ -345,6 +484,7 @@ export function correr(b, m, r, orden) {
 /** Resultado final de la búsqueda (o error si nada entró). */
 export function terminar(b) {
   const p = b.p;
+  if (AJUSTES.columnas) correrColumnas(b);
   if (!b.frente.length) throw new Error("No se pudo acomodar alguna pieza con esos límites de cizalla.");
   const mejor = elegir(b.frente, TOL_RETAZO);
   const res = armarRes(mejor, p.lista, p.dims, p.W, p.H, p.corte, p.trim, p.maxCorte, p.rotar, p.avisos, p.total);
