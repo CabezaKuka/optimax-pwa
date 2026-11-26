@@ -376,6 +376,13 @@ def portones_demo(pg, base, cap):
     pg.wait_for_selector(".inicio")
     pg.click("a.mod[href='#portones']")
     pg.wait_for_selector("#p-lista li")
+    control(pg.input_value("#p-ancho") == "800" and pg.input_value("#p-alto") == "800", "portones: la reja de muestra de 800 × 800")
+    # lo que sigue se armó con la reja de 1200 × 1000 (la muestra hasta el 26-nov)
+    pg.fill("#p-ancho", "1200")
+    pg.locator("#p-ancho").blur()
+    pg.fill("#p-alto", "1000")
+    pg.locator("#p-alto").blur()
+    pg.wait_for_timeout(700)
     control(pg.locator("#p-lista li").count() == 4, "portones: la reja de muestra con 4 marcas (marco ×2, travesaño, barrote)")
     control(pg.inner_text("#p-resumen .dato-v >> nth=0") == "23", "portones: 23 piezas")
     control(pg.locator("#p-dibujo polygon").count() >= 20, "portones: elevación dibujada")
@@ -770,6 +777,57 @@ def instalar(b, base, cap):
     pg.goto(base)
     pg.wait_for_selector(".inicio")
     control(pg.is_hidden("#instalar") and pg.is_hidden("#btn-instalar"), "instalar: ya instalada, no se ofrece")
+    ctx.close()
+
+
+def portones_arriba(b, base):
+    """Rejas y portones (26-nov): en el celular el dibujo va arriba (como en los desarrollos), en la PC a la derecha;
+    reja de ventana por defecto 800 × 800; 3D bloqueado en Brave → aviso de los escudos."""
+    ctx = b.new_context(viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True)
+    pg = ctx.new_page()
+    errs = []
+    pg.on("pageerror", lambda e: errs.append(str(e)))
+    pg.goto(base + "#portones")
+    pg.wait_for_selector("#p-dibujo svg")
+    control(pg.input_value("#p-ancho") == "800" and pg.input_value("#p-alto") == "800", "portones: reja de ventana 800 × 800 por defecto")
+    y = lambda sel: pg.locator(sel).bounding_box()["y"]
+    control(pg.evaluate("!!document.querySelector('.b-datos #p-vista-arriba .p-elev')") and
+            y(".trabajo-barra") < y(".p-elev") < y("#p-tipos"), "portones celular: el dibujo arriba, después de «Trabajo» y antes del tipo")
+    control(y(".p-elev") < 844 and pg.is_visible("#p-dibujo svg"), "portones celular: el dibujo se ve sin bajar")
+    control(pg.evaluate("""(() => { const v = document.querySelector('#p-vista-arriba');
+      return [...v.children].map((e) => e.id || e.className).join(',') })()""") == "p-demo,p-error,p-elev",
+            "portones celular: el aviso de la DEMO y los errores van arriba, con el dibujo")
+    pg.fill("#p-ancho", "2000")
+    pg.wait_for_timeout(500)
+    control(pg.is_visible("#p-demo") and y("#p-demo") < y(".p-elev") < y("#p-tipos"), "portones celular: el aviso del tope de la DEMO, arriba")
+    pg.fill("#p-ancho", "800")
+    pg.locator("#p-ancho").blur()
+    pg.wait_for_timeout(500)
+    pg.set_viewport_size({"width": 1366, "height": 820})
+    pg.wait_for_timeout(400)
+    control(pg.evaluate("!!document.querySelector('.b-res #p-resultado .p-elev') && !!document.querySelector('.b-res > #p-demo')"),
+            "portones: en la PC el dibujo vuelve a la columna de la derecha")
+    pg.set_viewport_size({"width": 390, "height": 844})
+    pg.wait_for_timeout(400)
+    control(pg.evaluate("!!document.querySelector('#p-vista-arriba .p-elev')") and pg.locator("#p-vista-arriba").count() == 1,
+            "portones: de vuelta en el celular, arriba otra vez")
+    pg.click(".p-tarjeta[data-v=batiente_2]")             # DEMO: pide la PRO
+    pg.keyboard.press("Escape")
+    control(not errs, f"portones arriba: errores de JS {errs}")
+    ctx.close()
+    # Brave con WebGL bloqueado
+    ctx = b.new_context(viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True)
+    pg = ctx.new_page()
+    pg.add_init_script("""Object.defineProperty(navigator, 'brave', { value: { isBrave: () => Promise.resolve(true) } });
+      const g = HTMLCanvasElement.prototype.getContext;
+      HTMLCanvasElement.prototype.getContext = function (t, ...r) { return /webgl/.test(t) ? null : g.call(this, t, ...r); };""")
+    pg.goto(base + "#portones")
+    pg.wait_for_selector("#p-dibujo svg")
+    pg.click("#p-3d")
+    pg.wait_for_selector(".p-3d .error-txt", timeout=15000)
+    control("Brave" in pg.inner_text(".p-3d .error-txt") and "escudos" in pg.inner_text(".p-3d .error-txt"),
+            "3D en Brave bloqueado: aviso de los escudos")
+    pg.click(".p-3d .p-c-cerrar")
     ctx.close()
 
 
@@ -1198,6 +1256,7 @@ def main():
             b = p.chromium.launch(executable_path=a.chrome, args=["--no-sandbox"])
             celular(b, base, a.capturas)
             instalar(b, base, a.capturas)
+            portones_arriba(b, base)
             pc(b, base, a.capturas)
             if os.path.isdir(os.path.join(RAIZ, "pro")):
                 pro(b, base, a.capturas)

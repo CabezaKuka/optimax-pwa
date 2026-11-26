@@ -30,7 +30,7 @@ export const PORTONES = ["batiente_1", "batiente_2", "corredizo"];
 // DEMO: solo reja de ventana, hasta 1500 × 1000 mm en cualquier orientación (lado mayor / lado menor)
 export const DEMO_TIPOS = ["reja_ventana"];
 export const DEMO_LADOS = [1500.0, 1000.0];
-export const DEMO_MUESTRA = { tipo: "reja_ventana", nombre: "Reja de ventana", ancho: 1200.0, alto: 1000.0 };
+export const DEMO_MUESTRA = { tipo: "reja_ventana", nombre: "Reja de ventana", ancho: 800.0, alto: 800.0 };   // 26-nov: 800 × 800 (Max)
 
 export const ITEM_DEF = {
   nombre: "Portón", cantidad: 1, tipo: "batiente_2", ancho: 3000.0, alto: 2000.0,

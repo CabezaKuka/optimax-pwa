@@ -94,8 +94,32 @@ export async function montar(cont) {
     modulo: "portones", tipo: "portones", nesting: true, datos: datosTrabajo, cargar: cargarTrabajo,
     nuevo: nuevoTrabajo, sugerido: () => est.item.nombre || P.TEXTO[est.item.tipo] || "Portón",
   });
+  acomodarVista();
+  ANGOSTA.addEventListener("change", acomodarVista);
   calcular();
   if (salidaPdf) activarBoton($("#p-pdf"), "Imprimir o guardar en PDF", guardarPdf);
+}
+
+// Celular y tablet (26-nov, Max: «como en los desarrollos, se ve de entrada qué hace»): el dibujo (con el aviso de la
+// DEMO y los errores) sube arriba del formulario, después de «Trabajo»; en la PC queda en la columna de la derecha.
+const ANGOSTA = matchMedia("(max-width: 899px)");
+function acomodarVista() {
+  const fig = $(".p-elev"), demo = $("#p-demo"), err = $("#p-error");
+  if (!fig) return;
+  if (ANGOSTA.matches) {
+    let lugar = $("#p-vista-arriba");
+    if (!lugar) {
+      lugar = document.createElement("div");
+      lugar.id = "p-vista-arriba";
+      lugar.className = "p-vista-arriba";
+      lugar.setAttribute("aria-live", "polite");
+      (raiz.querySelector(".b-datos .trabajo-barra") || raiz.querySelector(".b-datos .titulo-figura")).after(lugar);
+    }
+    lugar.append(demo, err, fig);
+  } else {
+    $("#p-resultado").before(demo, err);
+    $("#p-resumen").after(fig);
+  }
 }
 
 function guardarPdf() {
@@ -111,6 +135,7 @@ function guardarPdf() {
 }
 
 export function desmontar() {
+  ANGOSTA.removeEventListener("change", acomodarVista);
   clearTimeout(reloj);
   cerrarSalida();
   observador?.disconnect();
@@ -881,6 +906,7 @@ function mostrar() {
   err.textContent = c.errores.join(" ");
   err.hidden = !c.errores.length;
   $("#p-resultado").hidden = !R;
+  $(".p-elev").hidden = !R;                           // en el celular el dibujo está fuera de #p-resultado
   if (!R) { $("#p-opt").hidden = true; return; }
   const marcas = c.filas.length, perfs = c.grupos.length;
   $("#p-resumen").innerHTML =
