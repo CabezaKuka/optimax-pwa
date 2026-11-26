@@ -13,6 +13,8 @@ import { armarTrabajos } from "../trabajos.js";
 import { abrir3D, cerrar3D } from "./portones3d.js";
 
 const CLAVE = "optimax-portones";
+// topes de los botones − / + (los demás: desde 1)
+const PASOS = { n_trav: [0, P.MAX_TRAV], n_franja: [0, P.MAX_FRANJA], n_panos: [1, P.MAX_PANOS] };
 // perfiles de ejemplo, sin precio (cada uno carga los suyos en «Perfiles»)
 const PERFILES_EJEMPLO = [
   ["Tubo cuadrado 40×40×2", "tubo", "40×40×2"], ["Tubo cuadrado 30×30×1,5", "tubo", "30×30×1,5"],
@@ -38,6 +40,7 @@ const CORTOS = {
 const CAMPOS = {
   ancho: ["Ancho del vano", "mm", 100], alto: ["Alto del vano", "mm", 100],
   luz_max: ["Luz máxima entre barrotes", "mm", 5], angulo: ["Ángulo", "°", 10], esp_chapa: ["Espesor de la chapa", "mm", 0.5],
+  franja: ["Franja libre entre los travesaños", "mm", 1],
   holg_lat: ["Holgura a los costados", "mm", 0], holg_centro: ["Holgura entre hojas", "mm", 0],
   luz_piso: ["Luz al piso", "mm", 0], solape: ["Solape del corredizo", "mm", 0],
   // reja de ventana (25-nov, Max): ancho / alto son el hueco; sobrepuesta si sobresale, si no, adentro con holgura
@@ -158,7 +161,14 @@ const PLANTILLA = `
     <div class="grupo">
     <h2 class="sub">Relleno</h2>
     <div class="p-tarjetas p-rellenos" id="p-rellenos"></div>
-    ${campo("luz_max")}${campo("angulo")}${paso("n_trav", "Travesaños")}
+    ${campo("luz_max")}${campo("angulo")}
+    <div class="campo campo-opcion" data-k="trav_modo"><span class="rotulo" id="p-trav_modo-rot">Travesaños</span>
+      <div class="segmentos" role="radiogroup" aria-labelledby="p-trav_modo-rot">
+        <label><input type="radio" name="p-trav_modo" value="repartidos"><span>Repartidos</span></label>
+        <label><input type="radio" name="p-trav_modo" value="doble"><span>Doble al centro</span></label>
+      </div></div>
+    ${paso("n_trav", "Travesaños")}${campo("franja")}${paso("n_franja", "Barrotes en la franja")}
+    ${paso("n_panos", "Paños a lo ancho")}
     <div class="campo campo-opcion" data-k="armado"><span class="rotulo">Armado con travesaños</span>
       <div class="segmentos" role="radiogroup" aria-label="Armado">
         <label><input type="radio" name="p-armado" value="a_tope"><span>A tope</span></label>
@@ -423,8 +433,10 @@ function ponerValores() {
   }
   $("#p-cantidad").textContent = it.cantidad;
   $("#p-n_trav").textContent = it.n_trav;
+  $("#p-n_franja").textContent = it.n_franja;
+  $("#p-n_panos").textContent = it.n_panos;
   for (const r of raiz.querySelectorAll('input[name="p-armado"]')) r.checked = r.value === it.armado;
-  for (const k of ["trav_lado", "chapa_trav", "cruce"]) {
+  for (const k of ["trav_lado", "chapa_trav", "cruce", "trav_modo"]) {
     for (const r of raiz.querySelectorAll(`input[name="p-${k}"]`)) r.checked = r.value === it[k];
   }
   $("#p-corte").value = est.corte;
@@ -493,11 +505,15 @@ function ponerFrente() {
 /** Muestra solo los campos que usa el tipo y el relleno elegidos (ui_portones._habilitar). */
 function habilitar() {
   const it = est.item, r = it.relleno, t = it.tipo;
+  // travesaño doble y paños a lo ancho (solo PWA, 26-nov): el doble va a tope (sin Armado / Adelante-Atrás); con
+  // paños o con el doble, la chapa va a tope (sin «Atrás de la chapa»)
+  const doble = P.esDoble(it), np = P.panos(it);
   const on = {
-    luz_max: P.usaLuz(r), angulo: P.usaAngulo(r), armado: P.usaArmado(r) && it.n_trav > 0, esp_chapa: r === "chapa",
-    trav_lado: P.usaArmado(r) && it.n_trav > 0 && it.armado === "pasantes",
-    chapa_trav: r === "chapa" && it.n_trav > 0, cruce: P.usaCruce(r),
-    perfil_relleno: r !== "chapa", perfil_trav: it.n_trav > 0,
+    luz_max: P.usaLuz(r), angulo: P.usaAngulo(r), armado: P.usaArmado(r) && it.n_trav > 0 && !doble, esp_chapa: r === "chapa",
+    trav_lado: P.sonPasantes(it),
+    chapa_trav: r === "chapa" && it.n_trav > 0 && !doble && np === 1, cruce: P.usaCruce(r),
+    trav_modo: P.usaDoble(it), n_trav: !doble, franja: doble, n_franja: doble, n_panos: P.usaPanos(it),
+    perfil_relleno: r !== "chapa" || (doble && it.n_franja > 0), perfil_trav: it.n_trav > 0 || np > 1,
     holg_lat: t === "batiente_1" || t === "batiente_2", holg_centro: t === "batiente_2", luz_piso: P.PORTONES.includes(t),
     solape: t === "corredizo",
     sob_lat: t === "reja_ventana", sob_arr: t === "reja_ventana", sob_abj: t === "reja_ventana",
@@ -511,7 +527,8 @@ function habilitar() {
   notaReja();
   $("#p-n_trav-rot").textContent = r === "horizontales" ? "Montantes" : "Travesaños";
   $("#p-trav_lado-rot").textContent = r === "horizontales" ? "Montantes" : "Travesaños";
-  raiz.querySelector('label[for="p-perfil_trav"]').textContent = r === "horizontales" ? "Montantes" : "Travesaños";
+  raiz.querySelector('label[for="p-perfil_trav"]').textContent = r === "horizontales" ? "Montantes"
+    : np > 1 ? (it.n_trav > 0 ? "Travesaños y parantes" : "Parantes") : "Travesaños";
   for (const b of raiz.querySelectorAll(".p-tarjeta")) {
     const ok = it[b.dataset.clave] === b.dataset.v;
     b.classList.toggle("elegida", ok);
@@ -527,6 +544,7 @@ function armarEventos() {
       if (clave === "tipo" && !pro && !P.DEMO_TIPOS.includes(v)) { abrirPro("portones"); return; }
       est.item[clave] = v;
       if (clave === "tipo" && est.item.nombre === "") est.item.nombre = P.TEXTO[v];
+      if (P.esDoble(est.item)) { est.item.n_trav = 2; $("#p-n_trav").textContent = 2; }   // el doble vuelve a valer
       habilitar();
       programar(0);
       return;
@@ -534,7 +552,8 @@ function armarEventos() {
     const b = e.target.closest("[data-paso]");
     if (b) {
       const k = b.dataset.paso, it = est.item;
-      it[k] = k === "n_trav" ? Math.max(0, Math.min(P.MAX_TRAV, it[k] + Number(b.dataset.d))) : Math.max(1, it[k] + Number(b.dataset.d));
+      const [lo, hi] = PASOS[k] || [1, Infinity];
+      it[k] = Math.max(lo, Math.min(hi, it[k] + Number(b.dataset.d)));
       $(`#p-${k}`).textContent = it[k];
       habilitar();
       programar(0);
@@ -561,6 +580,15 @@ function armarEventos() {
   for (const r of raiz.querySelectorAll('input[name="p-trav_lado"]')) {
     r.addEventListener("change", () => { if (r.checked) { est.item.trav_lado = r.value; guardar(); dibujar(); dibujarCompleta(); } });
   }
+  for (const r of raiz.querySelectorAll('input[name="p-trav_modo"]')) {
+    r.addEventListener("change", () => {
+      if (!r.checked) return;
+      Object.assign(est.item, P.normalizarItem({ ...est.item, trav_modo: r.value }));  // el doble = 2 travesaños (PC)
+      $("#p-n_trav").textContent = est.item.n_trav;
+      habilitar();
+      programar(0);
+    });
+  }
   for (const k of ["chapa_trav", "cruce"]) {                 // cambian la lista de corte: se recalcula
     for (const r of raiz.querySelectorAll(`input[name="p-${k}"]`)) {
       r.addEventListener("change", () => { if (r.checked) { est.item[k] = r.value; programar(0); } });
@@ -577,7 +605,7 @@ function armarEventos() {
     if (!calc?.resultados[0]) return;
     abrir3D(calc.resultados[0], perfiles(), { espChapa: est.item.esp_chapa, piso: P.PORTONES.includes(est.item.tipo),
       pasantes: pasantes(), travAtras: travAtras(), relleno: est.item.relleno, cruce: est.item.cruce,
-      chapaTrav: est.item.n_trav > 0 ? est.item.chapa_trav : "atras", tipo: est.item.tipo,
+      chapaTrav: P.chapaATope(est.item) ? "a_tope" : "atras", tipo: est.item.tipo,
       sobrepuesta: P.rejaSobrepuesta(est.item) });
   });
   $("#p-admin").addEventListener("click", abrirPerfiles);
@@ -664,8 +692,8 @@ function cerrarPerfiles() {
 function usosDe(nombre) {
   const it = est.item, out = [];
   for (const [k, t] of USOS) {
-    if (k === "perfil_trav" && !(it.n_trav > 0)) continue;
-    if (k === "perfil_relleno" && it.relleno === "chapa") continue;
+    if (k === "perfil_trav" && !(it.n_trav > 0 || P.panos(it) > 1)) continue;
+    if (k === "perfil_relleno" && it.relleno === "chapa" && !(P.esDoble(it) && it.n_franja > 0)) continue;
     if (it[k] === nombre) out.push(t);
   }
   return out;
@@ -1057,7 +1085,6 @@ async function nuevoTrabajo() {
 
 /** Barrotes pasantes (travesaños superpuestos) y si el travesaño va atrás de los barrotes (3D y orden del dibujo). */
 function pasantes() {
-  const it = est.item;
-  return P.usaArmado(it.relleno) && it.n_trav > 0 && it.armado === "pasantes";
+  return P.sonPasantes(est.item);
 }
 const travAtras = () => pasantes() && est.item.trav_lado === "atras";

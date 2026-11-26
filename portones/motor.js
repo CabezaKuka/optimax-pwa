@@ -45,10 +45,16 @@ export const ITEM_DEF = {
   // solo PWA (25-nov, Max), reja de ventana: ancho / alto = el HUECO; cuánto sobresale la reja a los costados (cada
   // lado), arriba y abajo (sobrepuesta, por delante de la pared) o, si todo es 0, la holgura en el hueco (amurada adentro)
   sob_lat: 0.0, sob_arr: 0.0, sob_abj: 0.0, holg_hueco: 0.0,
+  // solo PWA (26-nov, Max), portones: travesaño doble centrado en el alto, a tope, con la franja libre entre caras
+  // (franja) y n_franja barrotes cortos repartidos en el ancho (0 = hueca); con «Horizontales» no va (son montantes)
+  trav_modo: "repartidos", franja: 200.0, n_franja: 0,
+  // solo PWA (26-nov, Max), portones con chapa ciega: paños a lo ancho (parantes = n_panos − 1, con el perfil de los
+  // travesaños); travesaño entero de marco a marco, parantes cortados por tramo, todo a tope; una chapa por celda
+  n_panos: 1,
 };
 /** Claves del ítem que la PC no tiene (las ignora al abrir el .nesting). */
 export const SOLO_PWA = ["trav_lado", "chapa_trav", "cruce", "frente_marco", "frente_trav", "frente_relleno",
-  "sob_lat", "sob_arr", "sob_abj", "holg_hueco"];
+  "sob_lat", "sob_arr", "sob_abj", "holg_hueco", "trav_modo", "franja", "n_franja", "n_panos"];
 
 /** Reja de ventana: ¿va sobrepuesta (sobresale de algún lado) o adentro del hueco? */
 export const rejaSobrepuesta = (it) => it.tipo === "reja_ventana" && (it.sob_lat > 0 || it.sob_arr > 0 || it.sob_abj > 0);
@@ -72,8 +78,31 @@ export function itemDePC(it) {
   if (rejaSobrepuesta(it)) return { ...it, ancho: it.ancho - 2 * it.sob_lat, alto: it.alto - it.sob_arr - it.sob_abj };
   return { ...it, ancho: it.ancho + 2 * it.holg_hueco, alto: it.alto + 2 * it.holg_hueco };
 }
-const ENTEROS = new Set(["cantidad", "n_trav"]);
+const ENTEROS = new Set(["cantidad", "n_trav", "n_franja", "n_panos"]);
 export const MAX_TRAV = 10;
+export const MAX_FRANJA = 30;
+export const MAX_PANOS = 10;
+/** ¿Lleva travesaño doble? Solo portones y con los travesaños horizontales (no con «Horizontales»: son montantes). */
+export const usaDoble = (it) => PORTONES.includes(it.tipo) && it.relleno !== "horizontales";
+export const esDoble = (it) => usaDoble(it) && it.trav_modo === "doble";
+/** ¿Se eligen los paños a lo ancho? Solo portones con chapa ciega. */
+export const usaPanos = (it) => PORTONES.includes(it.tipo) && it.relleno === "chapa";
+export const panos = (it) => (usaPanos(it) ? it.n_panos : 1);
+/** Chapa en paños a tope (un paño por tramo o celda): elegido, o forzado por el travesaño doble o los parantes. */
+export const chapaATope = (it) => it.relleno === "chapa" &&
+  ((it.chapa_trav === "a_tope" && it.n_trav > 0) || esDoble(it) || panos(it) > 1);
+/** Barrotes pasantes (no con el travesaño doble: va a tope y la franja queda libre). */
+export const sonPasantes = (it) => usaArmado(it.relleno) && it.n_trav > 0 && it.armado === "pasantes" && !esDoble(it);
+/** Texto del armado para títulos («travesaño doble, franja 200 mm, 6 barrotes», «3 paños»), o "". */
+export function textoArmado(it) {
+  const out = [];
+  if (esDoble(it)) {
+    out.push(`travesaño doble, franja ${corto(it.franja, 1)} mm` +
+      (it.n_franja > 0 ? `, ${it.n_franja} ${it.n_franja === 1 ? "barrote" : "barrotes"}` : " libre"));
+  }
+  if (panos(it) > 1) out.push(`${it.n_panos} paños a lo ancho`);
+  return out.join(", ");
+}
 
 // marcas: color de pantalla (el segundo número es el color de AutoCAD del escritorio; acá no se usa)
 export const PALETA = ["#e15759", "#4e79a7", "#59a14f", "#f28e2b", "#b07aa1", "#76b7b2", "#edc948", "#9c755f", "#ff9da7",
@@ -285,6 +314,10 @@ export function normalizarItem(d) {
   if (!ARMADOS.some(([k]) => k === out.armado)) out.armado = ITEM_DEF.armado;
   out.cantidad = Math.max(1, out.cantidad);
   out.n_trav = Math.max(0, Math.min(MAX_TRAV, out.n_trav));
+  if (out.trav_modo !== "doble") out.trav_modo = "repartidos";
+  if (esDoble(out)) out.n_trav = 2;                     // la PC no tiene el doble: abre con 2 travesaños repartidos
+  out.n_franja = Math.max(0, Math.min(MAX_FRANJA, out.n_franja));
+  out.n_panos = Math.max(1, Math.min(MAX_PANOS, out.n_panos));
   out.nombre = out.nombre.trim() || TEXTO[out.tipo];
   for (const k of ["frente_marco", "frente_trav", "frente_relleno"]) if (out[k] !== "b") out[k] = "a";
   return out;
@@ -314,6 +347,7 @@ class Resultado {
     this.formas = [];           // [capa, [[x, y], ...], clave de pieza o null]
     this.juntas = [];           // [perfil, cantidad de uniones]
     this.chapas = [];           // [ancho, alto, espesor]
+    this.franjas = [];          // [x0, y0, ancho, alto] de la franja del travesaño doble con barrotes (cotas aparte)
     this.soldadura_extra_mm = 0.0;
     this.luces = [];
     this.herrajes = [];
@@ -574,8 +608,21 @@ function hoja(x0, y0, W, H, it, pm, pr, nombre, R, espejo = false, pt = null) {
   // travesaños (perpendiculares a los barrotes; con chapa, horizontales), de cara interior a cara interior del marco
   const ejesTrav = [];
   const at = pt.a;
-  let tramos;
-  if (vertical) {
+  const doble = esDoble(it);
+  let tramos, franja = null;
+  if (doble) {
+    // travesaño doble (PWA, 26-nov, Max): centrado en el alto, la franja libre entre caras; dos tramos iguales
+    const tramo = (ih - 2 * at - it.franja) / 2;
+    if (tramo <= 0) throw new Error("La franja y los dos travesaños no entran en esa altura");
+    const ys = [iy + tramo, iy + tramo + at + it.franja];
+    for (const y of ys) {
+      rect(R, "TRAVESANO", ix - e, y, iw + 2 * e, at, pt, iw + 2 * e);
+      ejesTrav.push([[ix - e, y + at / 2], [ix + iw + e, y + at / 2]]);
+    }
+    R.piezas.push({ perfil: pt, largo: red(iw + 2 * e, 1), corte: RECTO, cant: 2, uso: "travesaño" });
+    tramos = [[ix, iy, iw, tramo], [ix, ys[1] + at, iw, tramo]];
+    franja = [ix, ys[0] + at, iw, it.franja];
+  } else if (vertical) {
     const tramo = (ih - n * at) / (n + 1);
     if (tramo <= 0) throw new Error("Demasiados travesaños para esa altura");
     for (let k = 0; k < n; k++) {
@@ -598,12 +645,50 @@ function hoja(x0, y0, W, H, it, pm, pr, nombre, R, espejo = false, pt = null) {
   }
   if (n) R.juntas.push([pt, 2 * n]);
   // lados del marco que toca cada tramo [izq., abajo, der., arriba] (los de los travesaños no se alargan)
-  const ladosTramo = (k) => (vertical ? [e, k === 0 ? e : 0, e, k === n ? e : 0] : [k === 0 ? e : 0, e, k === n ? e : 0, e]);
+  const nt = tramos.length - 1;
+  const ladosTramo = (k) => (vertical ? [e, k === 0 ? e : 0, e, k === nt ? e : 0] : [k === 0 ? e : 0, e, k === nt ? e : 0, e]);
+
+  // barrotes de la franja del travesaño doble: cantidad propia, repartidos parejo en el ancho, a tope entre los dos
+  if (franja && it.n_franja > 0) {
+    const [fx, fy, fw, fh] = franja, nb = it.n_franja;
+    const luz = (fw - nb * pr.a) / (nb + 1);
+    if (luz <= 0) throw new Error("Los barrotes de la franja no entran en ese ancho");
+    for (let i = 0; i < nb; i++) {
+      const x = fx + luz + i * (pr.a + luz);
+      rect(R, "BARRA", x, fy, pr.a, fh, pr, fh);
+    }
+    R.piezas.push({ perfil: pr, largo: red(fh, 1), corte: RECTO, cant: nb, uso: "barrote de la franja" });
+    R.juntas.push([pr, 2 * nb]);
+    R.franjas.push([fx, fy, fw, fh]);
+  }
 
   if (relleno === "chapa") {
-    // atrás (por defecto, como la PC): una sola chapa y los travesaños detrás; a tope (PWA): un paño por tramo
-    const panos = it.chapa_trav === "a_tope" && n > 0 ? tramos.map((z, k) => ampliar(z, ladosTramo(k))) : [[ix - e, iy - e, iw + 2 * e, ih + 2 * e]];
-    for (const [cx, cy, cw, ch] of panos) {
+    // atrás (por defecto, como la PC): una sola chapa y los travesaños detrás; a tope (PWA): un paño por tramo; con
+    // paños a lo ancho (PWA, 26-nov): parantes entre el marco y los travesaños (cortados por tramo), un paño por celda
+    const np = panos(it);
+    let celdas = tramos.map((z, k) => [z, ladosTramo(k)]);
+    if (np > 1) {
+      const pw = (iw - (np - 1) * at) / np;
+      if (pw <= 0) throw new Error("Demasiados paños para ese ancho");
+      const largos = new Map();
+      celdas = [];
+      for (const [k, [tx, ty, tw, th]] of tramos.entries()) {
+        const [eL, eB, eR, eT] = ladosTramo(k);
+        const lp = th + eB + eT;
+        for (let j = 0; j < np; j++) {
+          const cx = tx + j * (pw + at);
+          celdas.push([[cx, ty, pw, th], [j === 0 ? eL : 0, eB, j === np - 1 ? eR : 0, eT]]);
+          if (j < np - 1) rect(R, "TRAVESANO", cx + pw, ty - eB, at, lp, pt, lp);
+        }
+        largos.set(red(lp, 1), (largos.get(red(lp, 1)) || 0) + np - 1);
+      }
+      for (const [lp, q] of largos) {
+        R.piezas.push({ perfil: pt, largo: lp, corte: RECTO, cant: q, uso: "parante" });
+        R.juntas.push([pt, 2 * q]);
+      }
+    }
+    const chapas = chapaATope(it) ? celdas.map(([z, l]) => ampliar(z, l)) : [[ix - e, iy - e, iw + 2 * e, ih + 2 * e]];
+    for (const [cx, cy, cw, ch] of chapas) {
       rect(R, "CHAPA", cx, cy, cw, ch);
       R.chapas.push([cw, ch, it.esp_chapa]);
       R.soldadura_extra_mm += 2 * (cw + ch) * 0.3;      // puntos / cordones intermitentes ≈ 30 % del contorno
@@ -634,7 +719,7 @@ function hoja(x0, y0, W, H, it, pm, pr, nombre, R, espejo = false, pt = null) {
   }
 
   // a tope → el relleno se corta en cada tramo; pasantes → entero de marco a marco, travesaños superpuestos
-  const pasantes = it.armado === "pasantes" && n > 0;
+  const pasantes = it.armado === "pasantes" && n > 0 && !doble;
   const zonas = pasantes ? [[ix, iy, iw, ih]] : tramos;
   const lados = pasantes ? [[e, e, e, e]] : tramos.map((_, k) => ladosTramo(k));
   let ejes = [];
@@ -735,28 +820,33 @@ export function generar(it, perfiles) {
   if (!def) throw new Error("ese tipo es de la versión PRO");
   let pm = perfiles[it.perfil_marco];
   if (!pm) throw new Error(it.perfil_marco ? `el perfil «${it.perfil_marco}» no tiene medidas` : "elegí el perfil del marco");
+  // perfil del relleno: también con chapa si la franja del travesaño doble lleva barrotes; el de los travesaños,
+  // también para los parantes de la chapa
+  const conRelleno = it.relleno !== "chapa" || (esDoble(it) && it.n_franja > 0);
+  const conTrav = it.n_trav > 0 || panos(it) > 1;
   let pr = perfiles[it.perfil_relleno];
   if (!pr) {
-    if (it.relleno !== "chapa") {
+    if (conRelleno) {
       throw new Error(it.perfil_relleno ? `el perfil «${it.perfil_relleno}» no tiene medidas` : "elegí el perfil del relleno");
     }
     pr = null;                                          // chapa: más abajo, el del marco
   }
   let pt = pm;
-  if (it.perfil_trav && it.n_trav > 0) {
+  if (it.perfil_trav && conTrav) {
     pt = perfiles[it.perfil_trav];
     if (!pt) throw new Error(`el perfil «${it.perfil_trav}» de los travesaños no tiene medidas`);
   }
   // botón «Frente» (solo PWA): con «Igual que el marco» los travesaños siguen al marco
   const marcoGirado = it.frente_marco === "b";
-  if (it.perfil_trav && it.n_trav > 0 ? it.frente_trav === "b" : marcoGirado) pt = girarPerfil(pt);
-  if (it.relleno !== "chapa" && it.frente_relleno === "b") pr = girarPerfil(pr);
+  if (it.perfil_trav && conTrav ? it.frente_trav === "b" : marcoGirado) pt = girarPerfil(pt);
+  if (conRelleno && it.frente_relleno === "b") pr = girarPerfil(pr);
   if (marcoGirado) pm = girarPerfil(pm);
   if (pr === null) pr = pm;
   if (it.ancho <= 0 || it.alto <= 0) throw new Error("el ancho y el alto tienen que ser mayores que cero");
   if (usaLuz(it.relleno) && it.luz_max <= 0) throw new Error("la luz máxima tiene que ser mayor que cero");
   if (usaAngulo(it.relleno) && !(it.angulo >= 10 && it.angulo <= 80)) throw new Error("el ángulo tiene que estar entre 10° y 80°");
   if (it.relleno === "chapa" && it.esp_chapa <= 0) throw new Error("el espesor de la chapa tiene que ser mayor que cero");
+  if (esDoble(it) && !(it.franja > 0)) throw new Error("la franja entre los travesaños tiene que ser mayor que cero");
   if (it.tipo === "reja_ventana" && [it.sob_lat, it.sob_arr, it.sob_abj, it.holg_hueco].some((v) => v < 0)) {
     throw new Error("lo que sobresale y la holgura no pueden ser negativos");
   }
@@ -792,7 +882,9 @@ function cotas(R, it, a) {
     const xl = lado > 0 ? x0 + w : x0;
     const dentro = R.formas.filter(([, pts]) =>
       pts.every(([x, y]) => x0 - tol <= x && x <= x0 + w + tol && y0 - tol <= y && y <= y0 + h + tol));
-    const travY = [], travX = [], barX = [], barY = [];
+    const travY = [], travX = [], barX = [], barY = [], franX = [];
+    // barrotes de la franja del travesaño doble: cota aparte (no se mezclan con los de los tramos)
+    const enFranja = (ys) => R.franjas.some(([, fy, , fh]) => Math.min(...ys) >= fy - tol && Math.max(...ys) <= fy + fh + tol);
     const lineasH = [y0 + a, y0 + h - a], lineasV = [x0 + a, x0 + w - a];
     const sumar = (lst, v) => { if (!lst.includes(v)) lst.push(v); };
     const inclinadas = [];
@@ -802,7 +894,7 @@ function cotas(R, it, a) {
       if (cap === "TRAVESANO") {
         if (dx > dy) { travY.push(Math.min(...ys)); sumar(lineasH, Math.min(...ys)); sumar(lineasH, Math.max(...ys)); } else { travX.push(Math.min(...xs)); sumar(lineasV, Math.min(...xs)); sumar(lineasV, Math.max(...xs)); }
       } else if (cap === "BARRA" && k !== null && k.endsWith("\u0001" + JSON.stringify(RECTO))) {
-        if (dy > dx) barX.push(Math.min(...xs)); else barY.push(Math.min(...ys));
+        if (dy > dx) (enFranja(ys) ? franX : barX).push(Math.min(...xs)); else barY.push(Math.min(...ys));
       } else if (cap === "BARRA") inclinadas.push(pts);
     }
     if (conHoja) {
@@ -813,6 +905,11 @@ function cotas(R, it, a) {
     if (travY.length) { R.cotas.push(new Cota("V", y0, unicos(travY), xl + lado * nivel * uv, xl, "ordenada", lado)); nivel += 1; }
     if (travX.length) R.cotas.push(new Cota("H", x0, unicos(travX), y0 + h + 2 * u, y0 + h, "ordenada", 1));
     if (barX.length) R.cotas.push(new Cota("H", x0, unicos(barX), y0 - u, y0, "ordenada", -1));
+    if (franX.length) {
+      const arriba = barX.length && !travX.length;
+      const pos = !barX.length ? y0 - u : arriba ? y0 + h + 2 * u : y0 - 2 * u;
+      R.cotas.push(new Cota("H", x0, unicos(franX), pos, arriba ? y0 + h : y0, "ordenada", arriba ? 1 : -1));
+    }
     if (barY.length) R.cotas.push(new Cota("V", y0, unicos(barY), xl + lado * nivel * uv, xl, "ordenada", lado));
     // piezas inclinadas: dónde apoya cada una (la cara de su borde de apoyo) sobre el marco o el travesaño
     const sobre = new Map();
@@ -860,7 +957,7 @@ function cotas(R, it, a) {
 function rango(f) {
   const usos = [...f.usos].join(" ");
   return usos.includes("larguero") ? -1 : usos.includes("marco") ? 0
-    : (usos.includes("travesaño") || usos.includes("montante")) ? 1 : 2;
+    : (usos.includes("travesaño") || usos.includes("montante") || usos.includes("parante")) ? 1 : 2;
 }
 
 export function letraMarca(i) {
