@@ -11,6 +11,11 @@
 //   - El código PRO viaja dentro de la PWA, pero cifrado (pro.bin, AES-GCM). Con la llave guardada anda sin internet.
 //   - Al abrir con internet, se le pregunta al bot si el equipo sigue activo (revalidar). Si fue reemplazado por otro
 //     equipo de la misma cuenta, vuelve a la DEMO. Sin internet sigue andando (sin plazo máximo).
+//   - Compra desde la app (26-nov): el cliente elige cómo pagar → el bot crea la orden (OM-1048) y da el aviso para
+//     WhatsApp → paga y toca «Ya pagué», que abre WhatsApp con el aviso para el bot: el número de la licencia es el
+//     del que llega el aviso (no se escribe a mano). El bot le avisa al dueño; cuando confirma el pago, la cuenta de
+//     ese número queda con este equipo y la consulta del estado trae la clave y la llave (igual que «Entrar con
+//     WhatsApp»). La orden en curso queda guardada en el equipo: si cierran la app, sigue al volver a abrirla.
 //   - Nunca va acá una forma de fabricar claves: eso es la llave privada, que está solo en el bot.
 //
 // En desarrollo (localhost) la PRO se prende con ?pro=1 (y se apaga con ?pro=0): el código sale de la carpeta pro/
@@ -27,6 +32,7 @@ const CLAVE_DISP = "optimax-dispositivo";
 const CLAVE_LIC = "optimax-licencia";
 const CLAVE_PAQ = "optimax-paquete";
 const CLAVE_AVISO = "optimax-aviso";
+const CLAVE_COMPRA = "optimax-compra";
 const NAVEGADOR = typeof location !== "undefined";
 export const DESARROLLO = NAVEGADOR && ["localhost", "127.0.0.1", "[::1]"].includes(location.hostname);
 const BASE_PRO = NAVEGADOR ? new URL("./pro/", import.meta.url).href : "";
@@ -229,16 +235,59 @@ export async function pedirIngreso() {
 export async function consultarIngreso(token) {
   const d = await alBot("/pwa/ingreso/estado", { token });
   if (d.estado !== "ok") return d.estado || "pendiente";
+  return activarCon(d.clave, d.llave);
+}
+
+/** Clave y llave que mandó el bot → verificar, abrir el código PRO y guardar. → {nombre} */
+async function activarCon(clave, llave) {
   const codigo = codigoDispositivo();
-  const lic = await verificarClave(d.clave, codigo);
-  const paquete = await abrirPaquete(await bajarPaquete(), d.llave);
-  guardar(CLAVE_PAQ, d.llave);
-  guardar(CLAVE_LIC, d.clave);
+  const lic = await verificarClave(clave, codigo);
+  const paquete = await abrirPaquete(await bajarPaquete(), llave);
+  guardar(CLAVE_PAQ, llave);
+  guardar(CLAVE_LIC, clave);
   estado.modulos = armarModulos(paquete.archivos);
   estado.licencia = lic;
   estado.aviso = "";
   try { await navigator.storage?.persist?.(); } catch { /* el navegador puede negarlo: igual queda guardada */ }
   return { nombre: lic.nombre };
+}
+
+// ------------------------------------------------------------------ compra desde la app
+/** La orden en curso guardada en este equipo ({token, orden, metodo, whatsapp, texto}) o null. */
+export function compraPendiente() {
+  try {
+    const c = JSON.parse(leer(CLAVE_COMPRA) || "null");
+    return c && c.token && c.orden ? c : null;
+  } catch {
+    return null;
+  }
+}
+
+export function olvidarCompra() { guardar(CLAVE_COMPRA, null); }
+
+/** Datos de pago a la vista (con internet): el bot crea (o repite) la orden. → {orden, token, whatsapp, texto} */
+export async function pedirCompra(metodo) {
+  const d = await alBot("/pwa/compra", { codigo: codigoDispositivo(), metodo });
+  if (!d.token || !d.orden || !d.whatsapp || !d.texto) throw new Error("El servidor no respondió bien.");
+  return d;
+}
+
+/** «Ya pagué»: la orden queda guardada en el equipo hasta que se resuelva. */
+export function guardarCompra(d, metodo) {
+  guardar(CLAVE_COMPRA, JSON.stringify({ token: d.token, orden: d.orden, metodo, whatsapp: d.whatsapp, texto: d.texto }));
+}
+
+/**
+ * ¿Llegó el aviso / confirmaron el pago? → {estado: "esperando" | "pendiente" | "rechazada" | "sin_licencia" |
+ * "desconocida", orden} o {estado: "aprobada", nombre} con la PRO ya activada en este equipo (y la orden olvidada).
+ * Error sin conexión.
+ */
+export async function consultarCompra(token) {
+  const d = await alBot("/pwa/compra/estado", { token });
+  if (d.estado !== "aprobada") return { estado: d.estado || "esperando", orden: d.orden };
+  const r = await activarCon(d.clave, d.llave);
+  olvidarCompra();
+  return { estado: "aprobada", nombre: r.nombre, orden: d.orden };
 }
 
 /**
