@@ -542,6 +542,9 @@ body.sin-scroll { overflow: hidden; }
 .p-plegable .campo:not(:has(~ .campo:not([hidden]))) { border-bottom: 0; }
 .p-plegable .entrada { background: var(--fondo-ent); }
 .precio.bloq .nota { display: none; }
+.p-vista-arriba { margin: 0 0 14px; }
+.p-vista-arriba .p-elev { margin-top: 0; }
+.p-vista-arriba .aviso-demo, .p-vista-arriba .error-txt { margin-top: 0; }
 .p-elev { margin: 14px 0 0; background: var(--hoja); border-radius: var(--radio-g); padding: 8px 8px 4px; box-shadow: 0 0 0 1px var(--linea); }
 .p-elev-cab { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .p-luz { flex: 1 1 auto; font: 600 15px var(--num); }

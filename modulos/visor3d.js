@@ -54,7 +54,11 @@ export async function abrirVisor({ armar, piso = false, margen = 200, zArriba = 
   if (abierta !== est) return;                            // la cerraron mientras cargaba
   let ren;
   try { ren = new T.WebGLRenderer({ antialias: true }); } catch {
-    lienzo.innerHTML = `<p class="error-txt">Este equipo no puede mostrar 3D (WebGL).</p>`;
+    // Brave: los escudos (protección de huellas) bloquean WebGL después de un par de aperturas (26-nov, tablet de Max)
+    lienzo.innerHTML = navigator.brave
+      ? `<p class="error-txt">Brave está bloqueando la vista 3D: tocá el león, al lado de la dirección, apagá los escudos
+        para este sitio y recargá la página.</p>`
+      : `<p class="error-txt">Este equipo no puede mostrar 3D (WebGL).</p>`;
     return;
   }
   lienzo.innerHTML = "";
