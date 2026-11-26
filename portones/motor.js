@@ -42,9 +42,36 @@ export const ITEM_DEF = {
   cruce: "cruzadas",                // solo PWA (cuadrícula, rombos): familias superpuestas o en el mismo plano (en tramos)
   // solo PWA (25-nov, Max): cara de frente de cada perfil. «a» = la 1.ª medida (40 en 40×20×2, como la PC), «b» = la 2.ª
   frente_marco: "a", frente_trav: "a", frente_relleno: "a",
+  // solo PWA (25-nov, Max), reja de ventana: ancho / alto = el HUECO; cuánto sobresale la reja a los costados (cada
+  // lado), arriba y abajo (sobrepuesta, por delante de la pared) o, si todo es 0, la holgura en el hueco (amurada adentro)
+  sob_lat: 0.0, sob_arr: 0.0, sob_abj: 0.0, holg_hueco: 0.0,
 };
 /** Claves del ítem que la PC no tiene (las ignora al abrir el .nesting). */
-export const SOLO_PWA = ["trav_lado", "chapa_trav", "cruce", "frente_marco", "frente_trav", "frente_relleno"];
+export const SOLO_PWA = ["trav_lado", "chapa_trav", "cruce", "frente_marco", "frente_trav", "frente_relleno",
+  "sob_lat", "sob_arr", "sob_abj", "holg_hueco"];
+
+/** Reja de ventana: ¿va sobrepuesta (sobresale de algún lado) o adentro del hueco? */
+export const rejaSobrepuesta = (it) => it.tipo === "reja_ventana" && (it.sob_lat > 0 || it.sob_arr > 0 || it.sob_abj > 0);
+/** Hoja de la reja de ventana [x0, y0, w, h] respecto del hueco (0, 0 = abajo a la izquierda del hueco). */
+export function rejaHoja(it) {
+  if (rejaSobrepuesta(it)) return [-it.sob_lat, -it.sob_abj, it.ancho + 2 * it.sob_lat, it.alto + it.sob_arr + it.sob_abj];
+  const h = it.tipo === "reja_ventana" ? it.holg_hueco : 0;
+  return [h, h, it.ancho - 2 * h, it.alto - 2 * h];
+}
+/** [ancho, alto] de lo que se fabrica (reja de ventana: la hoja; portones: el vano). */
+export const medidaReja = (it) => (it.tipo === "reja_ventana" ? rejaHoja(it).slice(2) : [it.ancho, it.alto]);
+/** Ítem con ancho / alto = la reja que se fabrica y sin los datos del hueco (lo que se guarda para la PC). */
+export function itemParaPC(it) {
+  if (it.tipo !== "reja_ventana") return { ...it };
+  const [w, h] = medidaReja(it);
+  return { ...it, ancho: w, alto: h };
+}
+/** Lo inverso de itemParaPC: con los datos del hueco guardados, ancho / alto vuelven a ser el hueco. */
+export function itemDePC(it) {
+  if (it.tipo !== "reja_ventana") return { ...it };
+  if (rejaSobrepuesta(it)) return { ...it, ancho: it.ancho - 2 * it.sob_lat, alto: it.alto - it.sob_arr - it.sob_abj };
+  return { ...it, ancho: it.ancho + 2 * it.holg_hueco, alto: it.alto + 2 * it.holg_hueco };
+}
 const ENTEROS = new Set(["cantidad", "n_trav"]);
 export const MAX_TRAV = 10;
 
@@ -502,13 +529,13 @@ export function demoMax(otro) {
 
 /** ¿La DEMO puede dibujar este ítem? (reja de ventana dentro de DEMO_LADOS) */
 export function demoPermite(it) {
-  const [a, b] = [it.ancho, it.alto].sort((x, y) => y - x);
+  const [a, b] = medidaReja(it).sort((x, y) => y - x);
   return DEMO_TIPOS.includes(it.tipo) && a <= DEMO_LADOS[0] + 1e-9 && b <= DEMO_LADOS[1] + 1e-9;
 }
 
 // ------------------------------------------------------------------ tipos (los portones se registran desde el PRO)
 const TIPOS_DEF = {
-  reja_ventana: { hojas: (it) => [[0.0, 0.0, it.ancho, it.alto, "Hoja"]], herrajes: () => [] },
+  reja_ventana: { hojas: (it) => [[...rejaHoja(it), "Hoja"]], herrajes: () => [] },
 };
 /** Agrega tipos {id: {hojas(it), herrajes(it, hojas)}} (los portones del repo privado). */
 export function registrarTipos(tipos) { Object.assign(TIPOS_DEF, tipos); }
@@ -730,6 +757,9 @@ export function generar(it, perfiles) {
   if (usaLuz(it.relleno) && it.luz_max <= 0) throw new Error("la luz máxima tiene que ser mayor que cero");
   if (usaAngulo(it.relleno) && !(it.angulo >= 10 && it.angulo <= 80)) throw new Error("el ángulo tiene que estar entre 10° y 80°");
   if (it.relleno === "chapa" && it.esp_chapa <= 0) throw new Error("el espesor de la chapa tiene que ser mayor que cero");
+  if (it.tipo === "reja_ventana" && [it.sob_lat, it.sob_arr, it.sob_abj, it.holg_hueco].some((v) => v < 0)) {
+    throw new Error("lo que sobresale y la holgura no pueden ser negativos");
+  }
   const R = new Resultado([it.ancho, it.alto]);
   const hojas = def.hojas(it);
   for (const [x0, y0, W, H, nombre] of hojas) {
@@ -754,6 +784,9 @@ function cotas(R, it, a) {
   const uv = 1.5 * u;                                   // al costado el texto va acostado: más lugar entre filas
   const tol = 1e-6;
   const varias = PORTONES.includes(it.tipo);
+  // reja de ventana con otra medida que el hueco (sobrepuesta o con holgura): también se acota la reja
+  const conHoja = varias || R.hojas.some(([x0, y0, w, h]) => Math.abs(x0) > tol || Math.abs(y0) > tol ||
+    Math.abs(w - W) > tol || Math.abs(h - H) > tol);
   for (const [x0, y0, w, h, nombre] of R.hojas) {
     const lado = nombre === "Hoja der." ? 1 : -1;
     const xl = lado > 0 ? x0 + w : x0;
@@ -772,7 +805,7 @@ function cotas(R, it, a) {
         if (dy > dx) barX.push(Math.min(...xs)); else barY.push(Math.min(...ys));
       } else if (cap === "BARRA") inclinadas.push(pts);
     }
-    if (varias) {
+    if (conHoja) {
       R.cotas.push(new Cota("H", x0, [x0 + w], y0 + h + u, y0 + h, "lineal", 1, true));
       R.cotas.push(new Cota("V", y0, [y0 + h], xl + lado * uv, xl, "lineal", lado, true));
     }

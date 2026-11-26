@@ -1,10 +1,10 @@
 // Opciones propias de la PWA en Rejas y portones (25-nov, Max; la PC todavía no las tiene):
 //   chapa ciega con los travesaños atrás (una chapa) o a tope (un paño por tramo); cuadrícula y rombos cruzados o en
 //   el mismo plano (una familia en tramos); botón «Frente» (qué medida del perfil va de frente); columnas y paredes
-//   alrededor del portón en el 3D.
+//   alrededor del portón en el 3D; reja de ventana con hueco, lo que sobresale y holgura (y su pared en el 3D).
 //   node tests/opciones_pwa.mjs
 import * as P from "../portones/motor.js";
-import { piezas3D, entorno3D, ENTORNOS } from "../modulos/portones3d.js";
+import { piezas3D, entorno3D, ENTORNOS, ENTORNOS_REJA } from "../modulos/portones3d.js";
 
 let bien = 0, mal = 0;
 const ok = (que, cond, extra = "") => { if (cond) bien++; else { mal++; console.log(`MAL ${que} ${extra}`); } };
@@ -125,6 +125,46 @@ ok("entorno corredizo: columnas y paredes por delante de la hoja (corre detrás)
   [...ec.Columnas, ...ec.Paredes].every((c) => c[4] >= 20 - 1e-9) && fuera(ec.Columnas, 3000) && fuera(ec.Paredes, 3000));
 ok("entorno corredizo: el solape (3000 a 3150) queda detrás de la columna del cierre", ec.Columnas[1][0] === 3000 && ec.Columnas[1][1] >= 3150);
 ok("entorno corredizo: la pared del otro lado tapa la hoja abierta", -ec.Paredes[0][0] >= 3150, ec.Paredes[0][0]);
+
+// reja de ventana: hueco + sobresale / holgura (25-nov, Max)
+const marco = (c, uso) => c.resultados[0].piezas.find((p) => p.uso === uso)?.largo;
+const r0 = calc(base);
+ok("hueco: todo en 0 = la reja del hueco (como la PC)", marco(r0, "marco horizontal") === 1200 && marco(r0, "marco vertical") === 1000 &&
+  JSON.stringify(r0.resultados[0].hojas[0].slice(0, 4)) === "[0,0,1200,1000]");
+const rs = calc({ ...base, sob_lat: 50, sob_arr: 40, sob_abj: 30 });
+ok("hueco: sobrepuesta 1200 × 1000 + 50 / 40 / 30 = reja 1300 × 1070", marco(rs, "marco horizontal") === 1300 &&
+  marco(rs, "marco vertical") === 1070 && JSON.stringify(rs.resultados[0].hojas[0].slice(0, 4)) === "[-50,-30,1300,1070]",
+  JSON.stringify(rs.resultados[0].hojas[0]));
+const rh = calc({ ...base, holg_hueco: 5 });
+ok("hueco: adentro con holgura 5 = reja 1190 × 990", marco(rh, "marco horizontal") === 1190 &&
+  JSON.stringify(rh.resultados[0].hojas[0].slice(0, 4)) === "[5,5,1190,990]");
+const rsh = calc({ ...base, sob_arr: 20, holg_hueco: 5 });
+ok("hueco: si sobresale, la holgura no cuenta", JSON.stringify(rsh.resultados[0].hojas[0].slice(0, 4)) === "[0,0,1200,1020]");
+ok("hueco: con otra medida que el hueco también se acota la reja", rs.resultados[0].cotas.length > r0.resultados[0].cotas.length &&
+  rh.resultados[0].cotas.length > r0.resultados[0].cotas.length);
+let neg = P.calcular([{ ...base, sob_lat: -1 }], perfiles, 3);
+ok("hueco: negativo = error", neg.errores.length === 1, neg.errores.join());
+ok("hueco: la holgura que se come la reja = error", P.calcular([{ ...base, holg_hueco: 600 }], perfiles, 3).errores.length === 1);
+const itS = P.normalizarItem({ ...base, sob_lat: 50, sob_arr: 40, sob_abj: 30 });
+const pc = P.itemParaPC(itS);
+ok("hueco: a la PC va la medida de la reja", pc.ancho === 1300 && pc.alto === 1070);
+ok("hueco: y vuelve al hueco al abrir", JSON.stringify(P.itemDePC(P.normalizarItem(pc))) === JSON.stringify(itS));
+const itH = P.normalizarItem({ ...base, holg_hueco: 5 });
+ok("hueco: con holgura, ida y vuelta", P.itemParaPC(itH).ancho === 1190 && JSON.stringify(P.itemDePC(P.itemParaPC(itH))) === JSON.stringify(itH));
+ok("hueco: un proyecto de la PC (sin datos del hueco) queda igual", JSON.stringify(P.itemDePC(P.normalizarItem(base))) === JSON.stringify(P.normalizarItem(base)));
+ok("hueco: los portones no cambian", JSON.stringify(P.itemParaPC({ ...base, tipo: "batiente_1", sob_lat: 50 })) ===
+  JSON.stringify({ ...base, tipo: "batiente_1", sob_lat: 50 }));
+ok("hueco: datos solo de la PWA", ["sob_lat", "sob_arr", "sob_abj", "holg_hueco"].every((k) => P.SOLO_PWA.includes(k)));
+ok("DEMO: el tope es sobre la reja (1400 + 2 × 60 no entra)", !P.demoPermite(P.normalizarItem({ ...base, ancho: 1400, sob_lat: 60 })) &&
+  P.demoPermite(P.normalizarItem({ ...base, ancho: 1400, sob_lat: 50 })));
+// 3D: pared alrededor del hueco
+ok("pared: Nada / Pared", ENTORNOS_REJA.join() === "Nada,Pared");
+const Rv = { vano: [1200, 1000], hojas: [[0, 0, 1200, 1000, "Hoja"]] };
+const ad = entorno3D(Rv, "reja_ventana", 20, -20, false).Pared, so = entorno3D(Rv, "reja_ventana", 20, -20, true).Pared;
+const hueco = (cs) => cs.length === 4 && cs[0][1] === 0 && cs[1][0] === 1200 && cs[2][2] === 1000 && cs[3][3] === 0;
+ok("pared: 4 paños con el hueco de 1200 × 1000 y 600 alrededor", hueco(ad) && ad[0][0] === -600 && ad[0][3] === 1600);
+ok("pared: adentro, la cara de afuera al ras de la reja", ad.every((c) => c[5] === 20 && c[5] - c[4] === 150));
+ok("pared: sobrepuesta, la reja apoyada sobre la cara", so.every((c) => c[5] === -20));
 
 // por defecto, lo de siempre (lo controla la comparación con la PC)
 ok("por defecto: chapa atrás y cruzadas", P.ITEM_DEF.chapa_trav === "atras" && P.ITEM_DEF.cruce === "cruzadas");
