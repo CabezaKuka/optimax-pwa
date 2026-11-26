@@ -53,6 +53,13 @@ def bajar_pdf(pg, boton, que, opcion=None, cap=None):
     return paginas
 
 
+def abrir_hoja(pg):
+    """Rejas y portones en el celular: la hoja de opciones empieza cerrada (26-nov); la abre en «Tipo»."""
+    if pg.evaluate("!!document.querySelector('#p-hoja.cerrada')"):
+        pg.click("#p-hoja-nav [data-sec=tipo]")
+        pg.wait_for_timeout(400)
+
+
 def completa(pg):
     return pg.evaluate("!!document.querySelector('.plancha.completa')")
 
@@ -376,6 +383,7 @@ def portones_demo(pg, base, cap):
     pg.wait_for_selector(".inicio")
     pg.click("a.mod[href='#portones']")
     pg.wait_for_selector("#p-lista li")
+    abrir_hoja(pg)
     control(pg.input_value("#p-ancho") == "800" and pg.input_value("#p-alto") == "800", "portones: la reja de muestra de 800 × 800")
     # lo que sigue se armó con la reja de 1200 × 1000 (la muestra hasta el 26-nov)
     pg.fill("#p-ancho", "1200")
@@ -744,6 +752,7 @@ def instalar(b, base, cap):
     ctx, pg, errs = abrir(user_agent=ANDROID_FB, permissions=["clipboard-read", "clipboard-write"])
     pg.goto(base + "#portones")
     pg.wait_for_selector("#p-lista li")
+    abrir_hoja(pg)
     control(pg.is_visible("#instalar") and pg.is_hidden("#btn-instalar"), "instalar Facebook: en un módulo, el cartel")
     pg.click("#instalar-cerrar")
     pg.click("#btn-instalar")
@@ -789,6 +798,7 @@ def portones_arriba(b, base):
     pg.on("pageerror", lambda e: errs.append(str(e)))
     pg.goto(base + "#portones")
     pg.wait_for_selector("#p-dibujo svg")
+    abrir_hoja(pg)
     control(pg.input_value("#p-ancho") == "800" and pg.input_value("#p-alto") == "800", "portones: reja de ventana 800 × 800 por defecto")
     y = lambda sel: pg.locator(sel).bounding_box()["y"]
     control(pg.evaluate("!!document.querySelector('.b-datos #p-vista-arriba .p-elev')") and
@@ -811,6 +821,7 @@ def portones_arriba(b, base):
     pg.wait_for_timeout(400)
     control(pg.evaluate("!!document.querySelector('#p-vista-arriba .p-elev')") and pg.locator("#p-vista-arriba").count() == 1,
             "portones: de vuelta en el celular, arriba otra vez")
+    abrir_hoja(pg)
     pg.click(".p-tarjeta[data-v=batiente_2]")             # DEMO: pide la PRO
     pg.keyboard.press("Escape")
     control(not errs, f"portones arriba: errores de JS {errs}")
@@ -823,6 +834,7 @@ def portones_arriba(b, base):
       HTMLCanvasElement.prototype.getContext = function (t, ...r) { return /webgl/.test(t) ? null : g.call(this, t, ...r); };""")
     pg.goto(base + "#portones")
     pg.wait_for_selector("#p-dibujo svg")
+    abrir_hoja(pg)
     pg.click("#p-3d")
     pg.wait_for_selector(".p-3d .error-txt", timeout=15000)
     control("Brave" in pg.inner_text(".p-3d .error-txt") and "escudos" in pg.inner_text(".p-3d .error-txt"),
@@ -847,9 +859,19 @@ def hoja_portones(b, base, cap=None):
     control(pg.locator("#p-hoja-nav button").count() == 5 and
             [pg.inner_text(f"#p-hoja-nav button >> nth={k}") for k in range(5)] == ["Tipo", "Medidas", "Perfiles", "Relleno", "Lista"],
             "hoja: barra con Tipo · Medidas · Perfiles · Relleno · Lista")
-    control(abierta() and pg.get_attribute(bot("tipo"), "aria-current") == "true" and pg.is_visible("#p-tipos"),
-            "hoja: empieza abierta, en «Tipo»")
+    marcados = lambda: [pg.get_attribute(f"#p-hoja-nav button >> nth={k}", "aria-current") for k in range(5)]
+    control(not abierta() and "true" not in marcados() and alto() > 400, f"hoja: empieza cerrada, ningún botón encendido, dibujo grande ({alto():.0f} px)")
     control(pg.evaluate("document.documentElement.scrollHeight <= innerHeight + 1"), "hoja: la página no se desplaza (todo en una pantalla)")
+    if cap:
+        pg.screenshot(path=f"{cap}/h_cerrada.png")
+    pg.click(bot("tipo"))
+    pg.wait_for_timeout(600)
+    control(abierta() and marcados() == ["true", "false", "false", "false", "false"] and pg.is_visible("#p-tipos"),
+            "hoja: «Tipo» la abre en el tipo")
+    est_b = pg.evaluate("""[...document.querySelectorAll('#p-hoja-nav button')].map((b) => { const c = getComputedStyle(b);
+      return [c.opacity, c.backgroundColor, c.borderTopWidth] })""")
+    control(est_b[0][0] == "1" and all(float(e[0]) < 1 for e in est_b[1:]) and all(e[2] != "0px" for e in est_b)
+            and est_b[0][1] != est_b[1][1], f"hoja: botones con marco, el elegido encendido y los demás opacos ({est_b[:2]})")
     a0 = alto()
     hoja_y = pg.locator("#p-hoja").bounding_box()["y"]
     caja = pg.locator(".p-elev").bounding_box()
@@ -864,7 +886,7 @@ def hoja_portones(b, base, cap=None):
             "hoja: «Relleno» lleva a los rellenos")
     pg.click(bot("relleno"))
     pg.wait_for_timeout(500)
-    control(not abierta() and alto() > a0 + 150, "hoja: tocar otra vez el botón la cierra y el dibujo crece")
+    control(not abierta() and alto() > a0 + 150 and "true" not in marcados(), "hoja: tocar otra vez el botón la cierra, el dibujo crece y se apagan")
     pg.click(bot("medidas"))
     pg.wait_for_timeout(800)
     control(abierta() and pg.is_visible("#p-ancho") and pg.get_attribute(bot("medidas"), "aria-current") == "true", "hoja: «Medidas» la abre")
@@ -907,7 +929,8 @@ def hoja_portones(b, base, cap=None):
             "hoja: en la PC no hay hoja y todo vuelve a su lugar")
     pg.set_viewport_size({"width": 390, "height": 844})
     pg.wait_for_timeout(500)
-    control(pg.locator("#p-hoja").count() == 1 and abierta(), "hoja: de vuelta en el celular, la hoja otra vez")
+    control(pg.locator("#p-hoja").count() == 1 and not abierta(), "hoja: de vuelta en el celular, la hoja otra vez (cerrada)")
+    abrir_hoja(pg)
     # títulos sin repetir y «Trabajos» en el renglón de Inicio
     for mod, sel_ in (("portones", "#p-dibujo svg"), ("barras", "#piezas"), ("guillotina", "#piezas")):
         pg.goto(base + "?pro=1#" + mod)
@@ -952,6 +975,7 @@ def pc(b, base, cap):
         pg = ctx.new_page()
         pg.goto(base + "#portones")
         pg.wait_for_selector("#p-lista li")
+        abrir_hoja(pg)
         pg.click(".p-tarjeta[data-v=batiente_2]")
         pg.wait_for_selector("#hoja-pro[open]")
         href = pg.get_attribute("#btn-whatsapp", "href") or ""
@@ -1060,6 +1084,7 @@ def pro(b, base, cap):
     pg.evaluate("localStorage.removeItem('optimax-portones')")
     pg.goto(base + "#portones")
     pg.wait_for_selector("#p-lista li")
+    abrir_hoja(pg)
     control(pg.locator(".p-tarjeta[data-clave=tipo] .tag").count() == 0, "portones PRO: los portones sin «PRO»")
     pg.click(".p-tarjeta[data-v=batiente_2]")
     pg.fill("#p-ancho", "4600")
@@ -1286,6 +1311,7 @@ print("OK" if op["tipo"] == "barras" and sorted(pz) == [(850.0, 3), (1200.0, 5)]
         # portones: la PC calcula lo mismo que la PWA
         pg.goto(base + "?pro=1#portones")
         pg.wait_for_selector("#p-lista li", timeout=10000)
+        abrir_hoja(pg)
         pg.wait_for_timeout(1500)
         n_pwa = pg.locator("#p-lista li").count()
         p_pwa = os.path.join(tmp, "p_pwa.nesting")
