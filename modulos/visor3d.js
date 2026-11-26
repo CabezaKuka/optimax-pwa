@@ -8,6 +8,24 @@
 // arma entorno.armar(T, basura) → {opción: Group | null}; no cambia el encuadre al cambiar (sí el piso, que los cubre).
 
 let abierta = null;
+// Un solo WebGLRenderer (un contexto WebGL) para toda la página, reusado en cada apertura (26-nov): crear uno nuevo cada
+// vez fallaba en la tablet de Max después de un par de veces («no puede mostrar 3D»): los navegadores dan pocos contextos
+// y el que se suelta no siempre se libera enseguida. Si el contexto se perdió (el sistema lo quitó), se crea otro.
+let ren = null, contextos = 0;
+function renderer(T) {
+  if (ren && !ren.getContext().isContextLost()) return ren;
+  if (ren) { try { ren.dispose(); } catch { /* ya perdido */ } }
+  ren = new T.WebGLRenderer({ antialias: true });
+  contextos++;
+  ren.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  ren.outputColorSpace = T.SRGBColorSpace;
+  ren.domElement.addEventListener("webglcontextlost", (e) => {
+    e.preventDefault();
+    const a = abierta?.capa.querySelector(".p-3d-aviso");
+    if (a) { a.textContent = "⚠ Se cortó la vista 3D: cerrala y volvé a abrirla."; a.hidden = false; }
+  });
+  return ren;
+}
 
 /** true si hay una vista 3D abierta. */
 export const visorAbierto = () => !!abierta;
@@ -53,14 +71,14 @@ export async function abrirVisor({ armar, piso = false, margen = 200, zArriba = 
   }
   if (abierta !== est) return;                            // la cerraron mientras cargaba
   let ren;
-  try { ren = new T.WebGLRenderer({ antialias: true }); } catch {
-    lienzo.innerHTML = `<p class="error-txt">Este equipo no puede mostrar 3D (WebGL).</p>`;
+  try { ren = renderer(T); } catch {
+    lienzo.innerHTML = contextos ? `<p class="error-txt">El navegador no dejó volver a abrir la vista 3D. Recargá la página
+      (o cerrá y abrí la app) y probá de nuevo.</p>` : `<p class="error-txt">Este equipo no puede mostrar 3D (WebGL).</p>`;
     return;
   }
   lienzo.innerHTML = "";
-  ren.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-  ren.outputColorSpace = T.SRGBColorSpace;
   lienzo.append(ren.domElement);
+  capa.dataset.contextos = String(contextos);             // para las pruebas: tiene que seguir en 1
 
   const escena = new T.Scene();
   escena.background = new T.Color(fondo);
@@ -76,7 +94,6 @@ export async function abrirVisor({ armar, piso = false, margen = 200, zArriba = 
   let res;
   try { res = armar(T, grupo, basura) || {}; } catch (e) {
     for (const b of basura) b.dispose();
-    ren.dispose();
     lienzo.innerHTML = `<p class="error-txt">No se pudo armar la vista 3D: ${String(e.message || e)}</p>`;
     return;
   }
@@ -174,13 +191,13 @@ export async function abrirVisor({ armar, piso = false, margen = 200, zArriba = 
     lienzo.append(fila);
     mostrar(elegido);
   }
-  est.cerrar = () => {
+  est.cerrar = () => {                                    // el renderer queda para la próxima (ver renderer())
     vivo = false;
     obs.disconnect();
     ctl.dispose();
     for (const b of basura) b.dispose();
-    ren.dispose();
-    ren.forceContextLoss?.();
+    ren.renderLists.dispose();
+    ren.domElement.remove();
   };
 }
 

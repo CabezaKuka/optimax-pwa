@@ -773,6 +773,34 @@ def instalar(b, base, cap):
     ctx.close()
 
 
+def tresd_repetido(b, base):
+    """El 3D abierto y cerrado muchas veces (26-nov: en la tablet de Max fallaba después de un par): un solo contexto
+    WebGL para toda la página, que sigue vivo."""
+    ctx = b.new_context(viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True)
+    pg = ctx.new_page()
+    errs = []
+    pg.on("pageerror", lambda e: errs.append(str(e)))
+    malos, ctxs = [], set()
+    for modulo, boton, n in (("portones", "#p-3d", 25), ("chapa", "#z-3d", 15)):
+        pg.goto(base + "#" + modulo)
+        pg.wait_for_selector(boton)
+        for k in range(n):
+            pg.click(boton)
+            pg.wait_for_selector(".p-3d[data-piezas]", timeout=15000)
+            pg.wait_for_timeout(120)
+            ok = pg.evaluate("""() => { const c = document.querySelector('.p-3d canvas');
+              const g = c && (c.getContext('webgl2') || c.getContext('webgl'));
+              return !!g && !g.isContextLost() && !document.querySelector('.p-3d .error-txt') }""")
+            ctxs.add(pg.get_attribute(".p-3d", "data-contextos"))
+            if not ok:
+                malos.append(f"{modulo} {k + 1}")
+            pg.click(".p-3d .p-c-cerrar")
+    control(not malos, f"3D: abrir y cerrar 40 veces sin error ({malos[:3]})")
+    control(ctxs == {"1"}, f"3D: un solo contexto WebGL para toda la página ({sorted(ctxs)})")
+    control(not errs, f"3D repetido: errores de JS {errs}")
+    ctx.close()
+
+
 def pc(b, base, cap):
     ctx = b.new_context(viewport={"width": 1366, "height": 820})
     pg = ctx.new_page()
@@ -1198,6 +1226,7 @@ def main():
             b = p.chromium.launch(executable_path=a.chrome, args=["--no-sandbox"])
             celular(b, base, a.capturas)
             instalar(b, base, a.capturas)
+            tresd_repetido(b, base)
             pc(b, base, a.capturas)
             if os.path.isdir(os.path.join(RAIZ, "pro")):
                 pro(b, base, a.capturas)
