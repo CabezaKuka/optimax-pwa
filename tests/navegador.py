@@ -245,13 +245,14 @@ def ver_3d(pg, que, cap=None, nombre=None, entorno=None):
     control(n3d > 0 and pg.locator(".p-3d canvas").count() == 1 and pg.locator(".p-3d .error-txt").count() == 0,
             f"{que}: vista 3D con {n3d} piezas")
     if entorno is None:
-        control(pg.locator(".p-3d-entorno").count() == 0, f"{que}: sin columnas ni paredes (va en la pared)")
+        control(pg.locator(".p-3d-entorno").count() == 0, f"{que}: sin columnas ni paredes")
     else:
-        control(pg.locator(".p-3d-entorno label").count() == 3 and
-                pg.get_attribute(".p-3d", "data-entorno") in ("Nada", "Columnas", "Paredes"), f"{que}: botones Nada / Columnas / Paredes")
+        control(pg.locator(".p-3d-entorno label").count() == (2 if entorno in ("Pared",) else 3) and
+                pg.get_attribute(".p-3d", "data-entorno") in ("Nada", "Columnas", "Paredes", "Pared"), f"{que}: botones del alrededor")
         pg.click(f".p-3d-entorno label:has-text('{entorno}')")
-        control(pg.get_attribute(".p-3d", "data-entorno") == entorno and pg.locator(".p-3d .error-txt").count() == 0,
-                f"{que}: alrededor «{entorno}»")
+        control(pg.get_attribute(".p-3d", "data-entorno") == entorno and pg.locator(".p-3d .error-txt").count() == 0 and
+                (entorno == "Nada" or entorno in (pg.get_attribute(".p-3d", "data-armados") or "").split(",")),
+                f"{que}: alrededor «{entorno}» dibujado")
     pg.click(".p-3d-frente")
     pg.mouse.move(195, 420)
     pg.mouse.down()
@@ -364,6 +365,36 @@ def portones_demo(pg, base, cap):
     pg.locator("#p-ancho").blur()
     pg.wait_for_timeout(100)
     control(pg.input_value("#p-ancho") == "1500", "portones DEMO: el ancho vuelve al tope")
+    # reja de ventana: hueco + sobresale / holgura (25-nov, Max)
+    control(pg.inner_text("label[for=p-ancho]") == "Ancho del hueco" and pg.is_visible(".campo[data-k=sob_lat]") and
+            pg.is_visible(".campo[data-k=holg_hueco]") and "adentro del hueco" in pg.inner_text("#p-reja-medida"),
+            "reja: medidas del hueco, sobresale y holgura")
+    pg.fill("#p-sob_lat", "100")
+    pg.wait_for_timeout(500)
+    pg.locator("#p-sob_lat").blur()
+    pg.wait_for_timeout(100)
+    control(pg.input_value("#p-sob_lat") == "0" and pg.is_visible("#p-demo"), "reja DEMO: con el hueco al tope no puede sobresalir")
+    pg.fill("#p-ancho", "1200")
+    pg.locator("#p-ancho").blur()
+    pg.fill("#p-alto", "900")
+    pg.locator("#p-alto").blur()
+    pg.fill("#p-sob_lat", "100")
+    pg.fill("#p-sob_abj", "50")
+    pg.locator("#p-sob_abj").blur()
+    pg.wait_for_timeout(600)
+    control("1.400 × 950" in pg.inner_text("#p-reja-medida") and "sobrepuesta" in pg.inner_text("#p-reja-medida") and
+            pg.is_hidden(".campo[data-k=holg_hueco]"), f"reja: sobrepuesta 1400 × 950, sin holgura ({pg.inner_text('#p-reja-medida')} · "
+            f"{pg.input_value('#p-ancho')} {pg.input_value('#p-alto')} {pg.input_value('#p-sob_lat')} {pg.input_value('#p-sob_abj')})")
+    control("1.400" in pg.inner_text("#p-lista"), "reja: la lista de corte sale de la reja (1400)")
+    for k in ("sob_lat", "sob_abj"):
+        pg.fill(f"#p-{k}", "0")
+        pg.locator(f"#p-{k}").blur()
+    pg.fill("#p-alto", "1000")
+    pg.locator("#p-alto").blur()
+    pg.fill("#p-ancho", "1500")
+    pg.locator("#p-ancho").blur()
+    pg.wait_for_timeout(500)
+    control(pg.is_visible(".campo[data-k=holg_hueco]"), "reja: en 0 vuelve la holgura")
     # relleno chapa: sin luz, con espesor
     pg.click(".p-tarjeta[data-v=chapa]")
     pg.wait_for_timeout(500)
@@ -383,7 +414,7 @@ def portones_demo(pg, base, cap):
     control(pg.locator(".p-completa svg").count() == 1, "portones: pantalla completa")
     pg.click(".p-c-cerrar")
     control(pg.locator(".p-completa").count() == 0, "portones: cerrar la pantalla completa")
-    ver_3d(pg, "portones DEMO", cap, "c_portones_3d")
+    ver_3d(pg, "portones DEMO", cap, "c_portones_3d", "Pared")
     # pasantes: travesaño adelante / atrás (ejemplo de Max: marco ángulo 40×40×3, travesaños y barrotes 20×20)
     pg.click(".p-tarjeta[data-v=verticales]")
     pg.select_option("#p-perfil_marco", "Ángulo 40×40×3")

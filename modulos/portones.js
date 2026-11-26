@@ -40,6 +40,9 @@ const CAMPOS = {
   luz_max: ["Luz máxima entre barrotes", "mm", 5], angulo: ["Ángulo", "°", 10], esp_chapa: ["Espesor de la chapa", "mm", 0.5],
   holg_lat: ["Holgura a los costados", "mm", 0], holg_centro: ["Holgura entre hojas", "mm", 0],
   luz_piso: ["Luz al piso", "mm", 0], solape: ["Solape del corredizo", "mm", 0],
+  // reja de ventana (25-nov, Max): ancho / alto son el hueco; sobrepuesta si sobresale, si no, adentro con holgura
+  sob_lat: ["Sobresale a los costados (cada lado)", "mm", 0], sob_arr: ["Sobresale arriba", "mm", 0],
+  sob_abj: ["Sobresale abajo", "mm", 0], holg_hueco: ["Holgura en el hueco (cada lado)", "mm", 0],
 };
 
 const $ = (s) => raiz.querySelector(s);
@@ -145,6 +148,8 @@ const PLANTILLA = `
     <div class="grupo">
     <h2 class="sub">Medidas</h2>
     ${campo("ancho")}${campo("alto")}
+    ${campo("sob_lat")}${campo("sob_arr")}${campo("sob_abj")}${campo("holg_hueco")}
+    <p class="nota" id="p-reja-medida" hidden></p>
     </div>
     <div class="grupo">
     <h2 class="sub">Perfiles <button type="button" class="btn-sec btn-chico" id="p-admin">Editar perfiles</button></h2>
@@ -382,16 +387,32 @@ function cambioCampo(k, inp) {
   if (!(v >= minimo)) { cont.classList.add("mal"); return; }
   cont.classList.remove("mal");
   avisoDemo = "";
-  if (!pro && (k === "ancho" || k === "alto")) {
-    const tope = P.demoMax(it[k === "ancho" ? "alto" : "ancho"]);
-    if (v > tope) {
-      v = tope;
+  if (!pro && ["ancho", "alto", "sob_lat", "sob_arr", "sob_abj"].includes(k)) {
+    // el tope de la DEMO es sobre la reja que se fabrica (hueco + lo que sobresale): lo más que entra con este campo
+    const entra = (x) => P.demoPermite({ ...it, [k]: x });
+    if (!entra(v)) {
+      let lo = minimo, hi = v;
+      for (let i = 0; i < 60; i++) { const m = (lo + hi) / 2; if (entra(m)) lo = m; else hi = m; }
+      v = entra(Math.round(lo)) ? Math.round(lo) : Math.floor(lo);
+      if (!entra(v)) v = minimo;
       avisoDemo = `En la versión de prueba la reja va hasta ${miles(P.DEMO_LADOS[0])} × ${miles(P.DEMO_LADOS[1])} mm (en cualquier orientación). ` +
         `<button type="button" class="enlace" data-abre-pro="portones">Más grande y portones con la PRO</button>`;
     }
   }
   it[k] = v;
+  if (k.startsWith("sob_") || k === "holg_hueco" || k === "ancho" || k === "alto") habilitar();
   programar();
+}
+
+/** Debajo de las medidas de la reja de ventana: la medida que se fabrica y cómo va. */
+function notaReja() {
+  const it = est.item, nota = $("#p-reja-medida");
+  if (!nota) return;
+  nota.hidden = it.tipo !== "reja_ventana";
+  if (nota.hidden) return;
+  const [w, h] = P.medidaReja(it);
+  nota.textContent = `Reja de ${n1(w)} × ${n1(h)} mm, ` +
+    (P.rejaSobrepuesta(it) ? "sobrepuesta (por delante de la pared)." : "adentro del hueco.");
 }
 
 function ponerValores() {
@@ -479,9 +500,15 @@ function habilitar() {
     perfil_relleno: r !== "chapa", perfil_trav: it.n_trav > 0,
     holg_lat: t === "batiente_1" || t === "batiente_2", holg_centro: t === "batiente_2", luz_piso: P.PORTONES.includes(t),
     solape: t === "corredizo",
+    sob_lat: t === "reja_ventana", sob_arr: t === "reja_ventana", sob_abj: t === "reja_ventana",
+    holg_hueco: t === "reja_ventana" && !P.rejaSobrepuesta(it),
   };
   for (const [k, v] of Object.entries(on)) raiz.querySelector(`.campo[data-k="${k}"]`).hidden = !v;
   $("#p-holguras").hidden = !P.PORTONES.includes(t);
+  const reja = t === "reja_ventana";
+  raiz.querySelector('label[for="p-ancho"]').textContent = reja ? "Ancho del hueco" : CAMPOS.ancho[0];
+  raiz.querySelector('label[for="p-alto"]').textContent = reja ? "Alto del hueco" : CAMPOS.alto[0];
+  notaReja();
   $("#p-n_trav-rot").textContent = r === "horizontales" ? "Montantes" : "Travesaños";
   $("#p-trav_lado-rot").textContent = r === "horizontales" ? "Montantes" : "Travesaños";
   raiz.querySelector('label[for="p-perfil_trav"]').textContent = r === "horizontales" ? "Montantes" : "Travesaños";
@@ -550,7 +577,8 @@ function armarEventos() {
     if (!calc?.resultados[0]) return;
     abrir3D(calc.resultados[0], perfiles(), { espChapa: est.item.esp_chapa, piso: P.PORTONES.includes(est.item.tipo),
       pasantes: pasantes(), travAtras: travAtras(), relleno: est.item.relleno, cruce: est.item.cruce,
-      chapaTrav: est.item.n_trav > 0 ? est.item.chapa_trav : "atras", tipo: est.item.tipo });
+      chapaTrav: est.item.n_trav > 0 ? est.item.chapa_trav : "atras", tipo: est.item.tipo,
+      sobrepuesta: P.rejaSobrepuesta(est.item) });
   });
   $("#p-admin").addEventListener("click", abrirPerfiles);
   $("#hoja-perfiles").addEventListener("close", cerrarPerfiles);
@@ -978,7 +1006,7 @@ function datosTrabajo() {
     .map((m) => ({ nombre: m.nombre, forma: m.forma, medidas: m.medidas, largo: Number(m.largo) || 6000,
       precio: Number(m.precio) || 0, kg_m: 0 }));
   return { tipo: "portones", portones: {
-    version: 1, items: [{ ...it }], corte: String(est.corte), colorear: true, cotas: !!est.cotas, filtro: "Todos",
+    version: 1, items: [P.itemParaPC(it)], corte: String(est.corte), colorear: true, cotas: !!est.cotas, filtro: "Todos",
     costos: { soldadura_m: num(est.sold, 0), pintura_m2: num(est.pint, 0) }, perfiles: perfilesUsados,
     margen: String(est.margen ?? "1"),
   } };
@@ -990,7 +1018,8 @@ async function cargarTrabajo(op) {
   if (Number(p.version || 1) > 1) throw new Error("El proyecto se guardó con una versión más nueva del programa.");
   const items = Array.isArray(p.items) ? p.items : [];
   if (items.length > 1) msgs.push(`El proyecto tiene ${items.length} rejas o portones: se abrió el primero («${items[0].nombre || P.TEXTO[items[0].tipo] || "Portón"}»). La PWA trabaja con uno por trabajo.`);
-  const item = P.normalizarItem({ ...ITEM_INICIAL, ...(items[0] || {}) });
+  // la PC guarda la medida de la reja; con los datos del hueco (solo PWA) ancho / alto vuelven a ser el hueco
+  const item = P.itemDePC(P.normalizarItem({ ...ITEM_INICIAL, ...(items[0] || {}) }));
   // perfiles del proyecto: el mismo (forma, medidas y barra) que ya está en la lista → se usa ese; si no, se agrega
   const cambio = {};
   let agregados = 0;

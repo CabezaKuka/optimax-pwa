@@ -15,6 +15,8 @@
 // de 150 × 1000, las dos 200 mm más altas que el portón, por fuera del vano. Batientes: en el plano del portón.
 // Corredizo: la hoja corre por detrás (adelante = la calle): columna o pared del cierre pegada a la hoja (el solape
 // queda detrás) y la del otro lado con el largo de la hoja abierta. Solo se ve en pantalla (no cambia el cálculo).
+// Reja de ventana (25-nov, Max): «Nada / Pared»: paño de pared de 150 que sobresale 600 alrededor del hueco; la reja
+// adentro del hueco al ras de la cara de afuera o, si sobresale, apoyada sobre la cara (sobrepuesta).
 // three.js (vendor/three.min.js) se carga recién al abrir la vista (visor común: modulos/visor3d.js).
 import { abrirVisor, cerrarVisor } from "./visor3d.js";
 
@@ -24,15 +26,24 @@ const BORDE = "#3d2203";
 const REDONDOS = new Set(["tubo_red", "macizo_red"]);
 const MURO = "#e6dccb", MURO_BORDE = "#a39478";
 export const ENTORNOS = ["Nada", "Columnas", "Paredes"];
+export const ENTORNOS_REJA = ["Nada", "Pared"];
+const PANO = 600;                                   // pared alrededor del hueco de la ventana
 const COLUMNA = 300, PARED = 150, LARGO_PARED = 1000, SOBRE = 200, HOLGURA = 20;
 let ultimoEntorno = "Columnas";                     // lo último elegido (mientras la página está abierta)
+let ultimoReja = "Pared";
 
 /**
  * Cajas de columnas y paredes alrededor del portón (sin three.js). R = resultado (vano, hojas); zAdelante = z de la
  * cara de adelante del portón. {Columnas: [[x0, x1, y0, y1, z0, z1]…], Paredes: […]}.
  */
-export function entorno3D(R, tipo, zAdelante = 20) {
+export function entorno3D(R, tipo, zAdelante = 20, zAtras = -20, sobrepuesta = false) {
   const [W, H] = R.vano;
+  if (tipo === "reja_ventana") {
+    // el hueco = el vano; adentro: la cara de afuera de la pared al ras de la reja; sobrepuesta: la reja sobre la cara
+    const z1 = sobrepuesta ? zAtras : zAdelante, z0 = z1 - PARED;
+    return { Pared: [[-PANO, 0, -PANO, H + PANO, z0, z1], [W, W + PANO, -PANO, H + PANO, z0, z1],
+      [0, W, H, H + PANO, z0, z1], [0, W, -PANO, 0, z0, z1]] };
+  }
   const alto = H + SOBRE;
   const hojaMax = Math.max(W, ...R.hojas.map((h) => h[0] + h[2]));
   if (tipo === "corredizo") {
@@ -162,17 +173,37 @@ function eje(pts) {
  * perfiles = {nombre: Perfil}; opts.piso = true para dibujar el piso (portones; la reja de ventana va en la pared).
  */
 export async function abrir3D(R, perfiles, { espChapa = 1.5, piso = false, pasantes = false, travAtras = false,
-  relleno = "", cruce = "cruzadas", chapaTrav = "atras", tipo = "" } = {}) {
-  let zAdelante = 20;
-  const entorno = piso ? {
-    opciones: ENTORNOS, inicial: ultimoEntorno, alCambiar: (op) => { ultimoEntorno = op; },
+  relleno = "", cruce = "cruzadas", chapaTrav = "atras", tipo = "", sobrepuesta = false } = {}) {
+  let zAdelante = 20, zAtras = -20;
+  const reja = tipo === "reja_ventana";
+  const entorno = piso || reja ? {
+    opciones: reja ? ENTORNOS_REJA : ENTORNOS, inicial: reja ? ultimoReja : ultimoEntorno,
+    alCambiar: (op) => { if (reja) ultimoReja = op; else ultimoEntorno = op; },
     armar: (T, basura) => {
       const mat = new T.MeshStandardMaterial({ color: MURO, roughness: 0.9, metalness: 0 });
       const lin = new T.LineBasicMaterial({ color: MURO_BORDE });
       basura.push(mat, lin);
       const out = { Nada: null };
-      for (const [op, cajas] of Object.entries(entorno3D(R, tipo, zAdelante))) {
+      for (const [op, cajas] of Object.entries(entorno3D(R, tipo, zAdelante, zAtras, sobrepuesta))) {
         const g = new T.Group();
+        if (reja) {
+          // la pared de la ventana: una sola pieza con el hueco (sin las uniones de los 4 paños)
+          const xs = cajas.flatMap((c) => [c[0], c[1]]), ys = cajas.flatMap((c) => [c[2], c[3]]);
+          const [W, H] = R.vano, [z0, z1] = [cajas[0][4], cajas[0][5]];
+          const sh = new T.Shape();
+          sh.moveTo(Math.min(...xs), Math.min(...ys)); sh.lineTo(Math.max(...xs), Math.min(...ys));
+          sh.lineTo(Math.max(...xs), Math.max(...ys)); sh.lineTo(Math.min(...xs), Math.max(...ys)); sh.closePath();
+          const hu = new T.Shape();               // (el three.js propio no trae Path; Shape sirve de hueco)
+          hu.moveTo(0, 0); hu.lineTo(0, H); hu.lineTo(W, H); hu.lineTo(W, 0); hu.closePath();
+          sh.holes.push(hu);
+          const geo = new T.ExtrudeGeometry(sh, { depth: z1 - z0, bevelEnabled: false });
+          geo.translate(0, 0, z0);
+          const ed = new T.EdgesGeometry(geo, 30);
+          basura.push(geo, ed);
+          g.add(new T.Mesh(geo, mat), new T.LineSegments(ed, lin));
+          out[op] = g;
+          continue;
+        }
         for (const [x0, x1, y0, y1, z0, z1] of cajas) {
           const geo = new T.BoxGeometry(x1 - x0, y1 - y0, z1 - z0);
           geo.translate((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
@@ -205,6 +236,7 @@ export async function abrir3D(R, perfiles, { espChapa = 1.5, piso = false, pasan
     };
     const { piezas: lista, n, aviso } = piezas3D(R, perfiles, { espChapa, pasantes, travAtras, relleno, cruce, chapaTrav });
     zAdelante = Math.max(0, ...lista.map((pz) => (pz.tipo === "cilindro" ? pz.z + pz.d / 2 : pz.z1)));
+    zAtras = Math.min(0, ...lista.map((pz) => (pz.tipo === "cilindro" ? pz.z - pz.d / 2 : pz.z0)));
     const Y = new T.Vector3(0, 1, 0);
     for (const pz of lista) {
       if (pz.tipo === "extruir") {

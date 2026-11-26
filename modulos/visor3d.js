@@ -86,8 +86,9 @@ export async function abrirVisor({ armar, piso = false, margen = 200, zArriba = 
   // columnas / paredes alrededor (portones): un grupo por opción, se ve el elegido
   let grupos = {};
   if (entorno) {
-    try { grupos = entorno.armar(T, basura) || {}; } catch { grupos = {}; }
+    try { grupos = entorno.armar(T, basura) || {}; } catch (e) { grupos = {}; console.warn("Alrededor del 3D:", e); }
     for (const g of Object.values(grupos)) if (g) escena.add(g);
+    capa.dataset.armados = Object.keys(grupos).filter((k) => grupos[k]).join(",");   // para las pruebas
   }
   const elegido = entorno && entorno.opciones.includes(entorno.inicial) ? entorno.inicial : entorno?.opciones[0];
   const mostrar = (op) => {
