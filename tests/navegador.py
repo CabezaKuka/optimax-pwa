@@ -84,9 +84,26 @@ def celular(b, base, cap):
     control(pg.locator(".mod-desc").count() == 4 and "Lista de corte" in pg.inner_text(".inicio"),
             "inicio: cada tarjeta con su descripción")
     caja = [pg.locator(".mod").nth(k).bounding_box() for k in range(4)]
-    control(abs(caja[0]["y"] - caja[1]["y"]) < 1 and caja[2]["y"] > caja[0]["y"] + 100,
-            "inicio: de a 2 en el celular")
+    control(all(abs(c["x"] - caja[0]["x"]) < 1 for c in caja) and caja[1]["y"] > caja[0]["y"] + 50,
+            "inicio: módulos en lista en el celular")
     control(pg.evaluate("document.documentElement.scrollWidth <= innerWidth"), "inicio: sin desborde a lo ancho")
+    control(pg.locator("a.mod .mod-ir").count() == 4, "inicio: cada módulo con su flecha")
+    control(pg.evaluate("(() => { const i = document.querySelector('.ini-portada img'); return i.complete && i.naturalWidth > 0 })()"),
+            "inicio: portada con la imagen")
+    control(pg.inner_text(".ini-tit h1") == "Módulos" and "Qué vas a fabricar" not in pg.inner_text(".inicio")
+            and "optiMAX Taller" not in pg.inner_text(".inicio"), "inicio: «Módulos», sin repetir el nombre")
+    control(pg.is_visible(".marca-taller") and pg.inner_text(".marca-taller") == "TALLER", "cabecera: etiqueta TALLER")
+    tira = pg.inner_text(".ini-pro")
+    control("Con la PRO:" in tira and "costos" in tira and ("250 Bs" in tira or "20 USDT" in tira), f"inicio DEMO: tira de la PRO ({tira[:60]}…)")
+    control(pg.is_hidden(".pie"), "inicio: sin el pie")
+    pg.click(".ini-pro")
+    pg.wait_for_selector("#hoja-pro[open]")
+    control(True, "inicio DEMO: la tira abre la compra")
+    pg.keyboard.press("Escape")
+    pg.click("#ini-trabajos")
+    pg.wait_for_selector("#hoja-pro[open]")
+    control("trabajos" in pg.inner_text("#pro-motivo"), "inicio DEMO: Mis trabajos → compra (trabajos)")
+    pg.keyboard.press("Escape")
     control("Escaleras" not in pg.inner_text(".inicio"), "inicio: Escaleras no aparece")
     control(pg.is_hidden("#migas"), "inicio: sin «← Inicio»")
     if cap:
@@ -94,6 +111,7 @@ def celular(b, base, cap):
     pg.click("a.mod[href='#chapa']")
     pg.wait_for_selector("#chapas li")
     control(pg.url.endswith("#chapa"), "chapa: dirección #chapa")
+    control(pg.is_visible(".pie") and pg.is_visible(".marca-taller"), "chapa: con el pie y la cabecera")
     control(pg.is_visible("#migas"), "chapa: «← Inicio» visible")
     control(pg.inner_text("#fig-nom") == "T de caño", "chapa: figura por defecto")
     if cap:
@@ -635,31 +653,39 @@ def instalar(b, base, cap):
         pg.on("pageerror", lambda e: errs.append(str(e)))
         return ctx, pg, errs
 
-    # Chrome (Android): sin aviso del navegador no se ve nada; con el aviso, tarjeta en el inicio y no en la cabecera
+    # Chrome (Android): sin aviso del navegador no se ve nada; con el aviso, cartel flotante abajo (en cualquier pantalla)
     ctx, pg, errs = abrir()
     pg.goto(base)
     pg.wait_for_selector(".inicio")
     control(pg.is_hidden("#instalar") and pg.is_hidden("#btn-instalar"), "instalar: sin aviso de Chrome, no se ofrece")
     pg.evaluate(AVISO_CHROME)
-    control(pg.is_visible("#instalar") and pg.is_hidden("#btn-instalar"), "instalar: aviso de Chrome → tarjeta en el inicio")
-    caja_t, caja_m = pg.locator("#instalar").bounding_box(), pg.locator(".mod").first.bounding_box()
-    control(caja_t["y"] < caja_m["y"], "instalar: la tarjeta va arriba de los módulos")
+    control(pg.is_visible("#instalar") and pg.is_hidden("#btn-instalar"), "instalar: aviso de Chrome → cartel flotante")
+    pg.wait_for_timeout(400)                              # termina la animación de entrada
+    caja_t = pg.locator("#instalar").bounding_box()
+    control(pg.evaluate("getComputedStyle(document.querySelector('#instalar')).position") == "fixed" and
+            caja_t["y"] + caja_t["height"] <= 844 and caja_t["y"] > 844 - 140, f"instalar: el cartel flota abajo de la pantalla ({caja_t})")
+    pg.mouse.wheel(0, 3000)
+    pg.wait_for_timeout(300)
+    ult = pg.locator("#ini-trabajos").bounding_box()
+    control(ult["y"] + ult["height"] <= pg.locator("#instalar").bounding_box()["y"] + 1,
+            "instalar: al final de la página el cartel no tapa «Mis trabajos»")
     if cap:
-        pg.screenshot(path=f"{cap}/i_tarjeta.png")
+        pg.screenshot(path=f"{cap}/i_cartel.png")
     pg.click("#instalar-ok")
     control(pg.evaluate("window._prompts") == 1, "instalar: «Instalar» abre el de Chrome")
     pg.evaluate(AVISO_CHROME)
     pg.click("a.mod[href='#barras']")
     pg.wait_for_selector("#piezas")
-    control(pg.is_hidden("#instalar") and pg.is_visible("#btn-instalar"), "instalar: en un módulo, el botón de la cabecera")
+    control(pg.is_visible("#instalar") and pg.is_hidden("#btn-instalar"), "instalar: en un módulo, el cartel sigue")
+    pg.click("#instalar-cerrar")
+    control(pg.is_hidden("#instalar") and pg.is_visible("#btn-instalar"), "instalar: × → queda el ícono al lado de Comprar PRO")
     pg.click("#migas .volver")
     pg.wait_for_selector(".inicio")
-    pg.click("#instalar-cerrar")
-    control(pg.is_hidden("#instalar") and pg.is_visible("#btn-instalar"), "instalar: × → queda el botón al lado de Comprar PRO")
+    control(pg.is_hidden("#instalar") and pg.is_visible("#btn-instalar"), "instalar: cerrado, no vuelve al cambiar de pantalla")
     cab = pg.locator(".cabecera").bounding_box()
     bi, bp = pg.locator("#btn-instalar").bounding_box(), pg.locator(".btn-pro").bounding_box()
-    control(bi["x"] + bi["width"] <= bp["x"] and abs(bi["y"] - bp["y"]) < 4 and bp["x"] + bp["width"] <= cab["width"],
-            "instalar: botón al lado de Comprar PRO, sin desbordar")
+    control(bi["x"] + bi["width"] <= bp["x"] and abs((bi["y"] + bi["height"] / 2) - (bp["y"] + bp["height"] / 2)) < 3
+            and bp["x"] + bp["width"] <= cab["width"], "instalar: ícono al lado de Comprar PRO, sin desbordar")
     if cap:
         pg.screenshot(path=f"{cap}/i_cabecera.png")
     pg.click("#btn-instalar")
@@ -667,20 +693,28 @@ def instalar(b, base, cap):
     pg.reload()
     pg.wait_for_selector(".inicio")
     pg.evaluate(AVISO_CHROME)
-    control(pg.is_hidden("#instalar") and pg.is_visible("#btn-instalar"), "instalar: cerrada, no vuelve al recargar")
+    control(pg.is_hidden("#instalar") and pg.is_visible("#btn-instalar"), "instalar: recargar la misma pestaña no lo vuelve a mostrar")
+    pg2 = ctx.new_page()
+    pg2.goto(base)
+    pg2.wait_for_selector(".inicio")
+    pg2.evaluate(AVISO_CHROME)
+    control(pg2.is_visible("#instalar"), "instalar: al abrir la app de nuevo, el cartel vuelve")
+    pg2.close()
     pg.evaluate("dispatchEvent(new Event('appinstalled'))")
     control(pg.is_hidden("#instalar") and pg.is_hidden("#btn-instalar"), "instalar: instalada → se va")
     control(not errs, f"instalar Chrome: errores de JS {errs}")
     ctx.close()
 
-    # celular angosto (360): la cabecera con los dos botones entra
+    # celular angosto (360): la cabecera con el ícono, la etiqueta y Comprar PRO entra
     ctx = b.new_context(viewport={"width": 360, "height": 740}, is_mobile=True, has_touch=True)
     pg = ctx.new_page()
     pg.goto(base + "#barras")
     pg.wait_for_selector("#piezas")
     pg.evaluate(AVISO_CHROME)
-    bp = pg.locator(".btn-pro").bounding_box()
-    control(pg.is_visible("#btn-instalar") and bp["x"] + bp["width"] <= 360 and
+    pg.click("#instalar-cerrar")
+    bp, bt = pg.locator(".btn-pro").bounding_box(), pg.locator(".marca-taller").bounding_box()
+    bi = pg.locator("#btn-instalar").bounding_box()
+    control(pg.is_visible("#btn-instalar") and bp["x"] + bp["width"] <= 360 and bt["x"] + bt["width"] < bi["x"] and
             pg.evaluate("document.documentElement.scrollWidth <= innerWidth"), "instalar: en 360 px la cabecera entra")
     ctx.close()
 
@@ -688,7 +722,7 @@ def instalar(b, base, cap):
     ctx, pg, errs = abrir(user_agent=IPHONE)
     pg.goto(base)
     pg.wait_for_selector(".inicio")
-    control(pg.is_visible("#instalar"), "instalar iPhone: tarjeta sin aviso del navegador")
+    control(pg.is_visible("#instalar"), "instalar iPhone: cartel sin aviso del navegador")
     pg.click("#instalar-ok")
     pg.wait_for_selector("#hoja-instalar[open]")
     control(pg.is_visible("#inst-ios") and pg.is_hidden("#inst-app") and "Agregar a inicio" in pg.inner_text("#inst-ios"),
@@ -703,7 +737,8 @@ def instalar(b, base, cap):
     ctx, pg, errs = abrir(user_agent=ANDROID_FB, permissions=["clipboard-read", "clipboard-write"])
     pg.goto(base + "#portones")
     pg.wait_for_selector("#p-lista li")
-    control(pg.is_visible("#btn-instalar") and pg.is_hidden("#instalar"), "instalar Facebook: en un módulo, botón de la cabecera")
+    control(pg.is_visible("#instalar") and pg.is_hidden("#btn-instalar"), "instalar Facebook: en un módulo, el cartel")
+    pg.click("#instalar-cerrar")
     pg.click("#btn-instalar")
     pg.wait_for_selector("#hoja-instalar[open]")
     href = pg.get_attribute("#inst-chrome", "href") or ""
@@ -751,8 +786,10 @@ def pc(b, base, cap):
     pg.wait_for_selector(".inicio")
     if cap:
         pg.screenshot(path=f"{cap}/p_inicio.png")
-    ys = {round(pg.locator(".mod").nth(k).bounding_box()["y"]) for k in range(4)}
-    control(len(ys) == 1, "PC: inicio con las 4 tarjetas en una fila")
+    ys = [round(pg.locator(".mod").nth(k).bounding_box()["y"]) for k in range(4)]
+    control(ys[0] == ys[1] and ys[2] == ys[3] and ys[2] > ys[0], "PC: inicio con los módulos de a 2")
+    caja = pg.locator(".ini-portada img").bounding_box()
+    control(caja["height"] <= 301, f"PC: la portada no pasa los 300 px de alto ({caja['height']:.0f})")
     control(not errs, f"PC: errores de JS {errs}")
     ctx.close()
     # precio de la PRO (25-nov): 250 Bs en Bolivia, 20 USDT afuera; nombre «optiMAX Taller»
@@ -1006,6 +1043,29 @@ def trabajos(b, base, pcdir, cap=None):
     pg.wait_for_timeout(800)
     control(pg.locator(".pieza").count() == 3 and pg.inner_text("#t-nom-actual") == "Cocina Pérez", "trabajos: abrir de la lista")
     control(pg.inner_text(".pieza >> nth=0 >> .cant") == "2", "trabajos: abre lo guardado, no lo cambiado")
+    # «Mis trabajos» del inicio (todos los módulos juntos): abre el trabajo en su módulo
+    pg.click("#t-btn")
+    pg.click("#t-nuevo")
+    pg.wait_for_timeout(600)
+    control(pg.locator(".pieza").count() == 1 and pg.inner_text("#t-nom-actual") == "Sin guardar", "trabajos: nuevo (sin cambios, sin preguntar)")
+    pg.click("#migas .volver")
+    pg.wait_for_selector(".inicio")
+    control(pg.locator(".ini-pro").count() == 0 and pg.is_hidden(".btn-pro"), "inicio PRO: sin la tira ni «Comprar PRO»")
+    control(pg.get_attribute("#ini-trabajos", "data-abre-pro") is None and pg.inner_text("#ini-trabajos .ini-cuenta") == "1",
+            "inicio PRO: Mis trabajos con la cantidad guardada")
+    pg.click("#ini-trabajos")
+    pg.wait_for_selector("#hoja-ini-trabajos[open]")
+    item = pg.inner_text(".it-abrir")
+    control(pg.locator(".it-abrir").count() == 1 and "Cocina Pérez" in item and "guillotina" in item.lower(),
+            f"inicio PRO: la lista trae el trabajo y su módulo ({item!r})")
+    if cap:
+        pg.wait_for_timeout(400)
+        pg.screenshot(path=f"{cap}/t_inicio.png")
+    pg.click(".it-abrir")
+    pg.wait_for_selector("#t-nom-actual")
+    pg.wait_for_timeout(1000)
+    control(pg.url.endswith("#guillotina") and pg.inner_text("#t-nom-actual") == "Cocina Pérez" and pg.locator(".pieza").count() == 3
+            and pg.locator("#hoja-trabajos[open]").count() == 0, "inicio PRO: tocar el trabajo lo abre en su módulo")
     if cap:
         pg.screenshot(path=f"{cap}/t_barra.png")
         pg.click("#t-btn")

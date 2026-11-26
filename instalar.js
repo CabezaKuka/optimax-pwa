@@ -4,10 +4,10 @@
 // - «app»: navegador interno de Facebook / Instagram / Messenger (donde caen los anuncios): ahí no se puede instalar →
 //   hoja para abrirla en el navegador (en Android, el enlace intent:// a Chrome; si Facebook lo bloquea, los pasos).
 // Ya instalada (pantalla completa) o un navegador sin instalación (Firefox…): no se muestra nada.
-// Se ve como tarjeta arriba del inicio hasta que la cierran con la ×; desde ahí (y siempre dentro de los módulos)
-// queda el botón «Instalar» de la cabecera, al lado de «Comprar PRO».
+// Cartel flotante abajo al abrir la app (en cualquier pantalla); se cierra con la × hasta la próxima vez que se abra
+// (sessionStorage). Mientras no se ve, queda el ícono de instalar de la cabecera, al lado de «Comprar PRO».
 const $ = (s) => document.querySelector(s);
-const MEMORIA = "optimax-pwa-app";       // { instCerrado: true } (antes también iosVisto, del aviso de iPhone)
+const CERRADO = "optimax-inst-cerrado";  // sessionStorage: cerró el cartel en esta apertura
 
 const ua = navigator.userAgent;
 const esIOS = /iphone|ipad|ipod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
@@ -16,31 +16,26 @@ const enApp = /FBAN|FBAV|FB_IAB|FBIOS|Instagram|Messenger/i.test(ua);
 
 let modo = null;          // null | "prompt" | "ios" | "app"
 let aviso = null;         // el beforeinstallprompt guardado
-let enInicio = false;
+let cerradoAhora = false;  // por si el navegador no deja sessionStorage
 
-function leer() {
-  try { return JSON.parse(localStorage.getItem(MEMORIA)) || {}; } catch { return {}; }
+function cerrado() {
+  try { return cerradoAhora || sessionStorage.getItem(CERRADO) === "1"; } catch { return cerradoAhora; }
 }
-function guardar(cambios) {
-  const m = { ...leer(), ...cambios };
-  try { localStorage.setItem(MEMORIA, JSON.stringify(m)); } catch { /* sin almacenamiento: vuelve a aparecer */ }
+function cerrar() {
+  cerradoAhora = true;
+  try { sessionStorage.setItem(CERRADO, "1"); } catch { /* queda en memoria */ }
 }
 
 export const instalada = () =>
   matchMedia("(display-mode: standalone)").matches || matchMedia("(display-mode: fullscreen)").matches ||
   navigator.standalone === true;
 
-// tarjeta en el inicio (si no la cerraron); botón de la cabecera cuando la tarjeta no se ve
+// cartel flotante (si no lo cerraron en esta apertura); ícono de la cabecera cuando el cartel no se ve
 function mostrar() {
-  const tarjeta = !!modo && enInicio && !leer().instCerrado;
-  $("#instalar").hidden = !tarjeta;
-  $("#btn-instalar").hidden = !modo || tarjeta;
-}
-
-// app.js la llama al cambiar de pantalla
-export function ponerInicio(si) {
-  enInicio = si;
-  mostrar();
+  const cartel = !!modo && !cerrado();
+  $("#instalar").hidden = !cartel;
+  $("#btn-instalar").hidden = !modo || cartel;
+  document.body.classList.toggle("con-instalar", cartel);
 }
 
 async function instalar() {
@@ -103,7 +98,7 @@ export function armarInstalar() {
   }
   $("#instalar-ok").addEventListener("click", instalar);
   $("#btn-instalar").addEventListener("click", instalar);
-  $("#instalar-cerrar").addEventListener("click", () => { guardar({ instCerrado: true }); mostrar(); });
+  $("#instalar-cerrar").addEventListener("click", () => { cerrar(); mostrar(); });
   $("#inst-copiar").addEventListener("click", copiarEnlace);
   mostrar();
 }

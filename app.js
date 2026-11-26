@@ -4,7 +4,8 @@ import { moduloPorId } from "./modulos.js";
 import * as inicio from "./inicio.js";
 import { armarHojaPro, ponerContexto, abrirActivar, seguirCompra } from "./hoja-pro.js";
 import { esPro, DESARROLLO, iniciar, licencia, avisoLicencia, revalidar } from "./licencia.js";
-import { armarInstalar, ponerInicio } from "./instalar.js";
+import { armarInstalar } from "./instalar.js";
+import { abrirPedido } from "./trabajos.js";
 
 const $ = (s) => document.querySelector(s);
 const pantalla = $("#pantalla");
@@ -32,7 +33,7 @@ async function ir() {
   ponerContexto();
   pantalla.innerHTML = "";
   window.scrollTo(0, 0);
-  ponerInicio(destino === "inicio");
+  document.body.classList.toggle("en-inicio", destino === "inicio");   // el pie, solo en los módulos
   if (destino === "inicio") {
     actual = { id: "inicio", mod: inicio };
     document.title = "optiMAX · Herramientas para el taller";
@@ -49,6 +50,7 @@ async function ir() {
   if (mio !== turno) return;
   actual = { id: destino, mod };
   await mod.montar(pantalla);
+  if (mio === turno) abrirPedido(destino);        // «Mis trabajos» del inicio pidió abrir uno de este módulo
 }
 
 // ------------------------------------------------------------------ service worker (instalar: instalar.js)

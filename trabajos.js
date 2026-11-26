@@ -1,5 +1,6 @@
 // Trabajos (proyectos) de cada módulo, solo PRO (25-nov, Max: «como en la PC»):
-// - «Mis trabajos»: guardados en el celular (localStorage), con nombre y fecha; abrir, reemplazar, borrar.
+// - «Mis trabajos»: guardados en el celular (localStorage), con nombre y fecha; abrir, reemplazar, borrar. El inicio
+//   los muestra todos juntos (trabajosGuardados) y abre uno en su módulo (pedirAbrir → abrirPedido).
 // - .nesting compatible con optiMAX para PC (código PRO, proyectos/nesting.js): descargar / compartir y abrir archivo.
 // Un trabajo se guarda con el formato de la PC: opciones = {tipo, <tipo>: {...}} (las claves de la PC + algunas propias
 // de la PWA que la PC ignora). Chapa solo se guarda en el celular (el .nesting de chapa lleva el DXF de cada pieza).
@@ -18,6 +19,23 @@ const fechaCorta = (iso) => {
   return Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString("es", { day: "numeric", month: "short", year: "numeric" }) +
     " " + d.toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" });
 };
+
+// «Mis trabajos» del inicio: los guardados de todos los módulos (más nuevo primero) y abrir uno en su módulo
+const PEDIDO = "optimax-abrir-trabajo";             // sessionStorage: {modulo, nombre} que el inicio pidió abrir
+export function trabajosGuardados(modulos) {
+  return modulos.flatMap((modulo) => leer(`optimax-trabajos-${modulo}`, [])
+    .filter((t) => t && t.nombre).map((t) => ({ modulo, nombre: t.nombre, fecha: t.fecha })))
+    .sort((a, b) => String(b.fecha).localeCompare(String(a.fecha)));
+}
+export function pedirAbrir(modulo, nombre) {
+  try { sessionStorage.setItem(PEDIDO, JSON.stringify({ modulo, nombre })); } catch { /* sin almacenamiento */ }
+}
+/** app.js, después de montar un módulo: si el inicio pidió abrir un trabajo de ese módulo, lo abre. */
+export function abrirPedido(modulo) {
+  let p = null;
+  try { p = JSON.parse(sessionStorage.getItem(PEDIDO)); sessionStorage.removeItem(PEDIDO); } catch { /* nada */ }
+  if (p?.modulo === modulo) window.__optimaxTrabajos?.[modulo]?.abrirGuardado(p.nombre);
+}
 
 /**
  * Barra «Trabajo» al principio de `lugar` y su hoja. cfg:
@@ -209,6 +227,14 @@ export function armarTrabajos(lugar, cfg) {
     },
     /** El módulo cambió algo: actualiza «(sin guardar)». */
     cambio: mostrarNombre,
+    /** Desde «Mis trabajos» del inicio: abre el trabajo guardado con ese nombre (con cambios sin guardar, pregunta). */
+    abrirGuardado(nombre) {
+      const t = pro && lista().find((x) => x.nombre === nombre);
+      if (!t) return false;
+      abrirHoja();
+      conCambios(() => abrirOpciones(t.opciones, t.nombre, true));
+      return true;
+    },
   };
   (window.__optimaxTrabajos ??= {})[cfg.modulo] = api;
   if (!actual.firma) ponerActual(actual.nombre, null);  // primera vez: lo que hay es la base
