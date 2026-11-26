@@ -5,7 +5,9 @@
 import { pedirIngreso, consultarIngreso } from "./licencia.js";
 
 const WHATSAPP = "59177626675";
-const PRECIO = "25 USD";
+// Precio de la PRO (25-nov, Max): 250 Bs en Bolivia, 20 USDT afuera (Bolivia = zona horaria, como optimax.lat)
+const EN_BOLIVIA = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone === "America/La_Paz"; } catch { return false; } })();
+export const PRECIO = EN_BOLIVIA ? "250 Bs" : "20 USDT";
 const CADA_MS = 2000;                    // consulta al bot mientras espera el mensaje
 const ANDROID = /android/i.test(navigator.userAgent);
 const MSJ_ESPERA = "Mandá el mensaje que se abrió en WhatsApp y volvé acá. Esperando tu mensaje…";
@@ -38,7 +40,7 @@ export function abrirPro(motivo = "") {
   const d = document.querySelector("#hoja-pro");
   $h("#pro-motivo").textContent = MOTIVOS[motivo] ?? MOTIVOS[""];
   $h("#pro-extra").innerHTML = contexto.extra;
-  const txt = `Hola, probé optiMAX${contexto.nombre ? ` (${contexto.nombre})` : ""} y quiero la versión PRO (${PRECIO}).`;
+  const txt = `Hola, probé optiMAX Taller${contexto.nombre ? ` (${contexto.nombre})` : ""} y quiero la versión PRO (${PRECIO}).`;
   $h("#btn-whatsapp").href = `https://wa.me/${WHATSAPP}?text=${encodeURIComponent(txt)}`;
   if (typeof d.showModal === "function") d.showModal(); else d.setAttribute("open", "");
   if ($h("#pro-activar").open) prepararIngreso();

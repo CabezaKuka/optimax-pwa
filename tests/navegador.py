@@ -615,6 +615,20 @@ def pc(b, base, cap):
         pg.screenshot(path=f"{cap}/p_inicio.png")
     control(not errs, f"PC: errores de JS {errs}")
     ctx.close()
+    # precio de la PRO (25-nov): 250 Bs en Bolivia, 20 USDT afuera; nombre «optiMAX Taller»
+    for zona, precio in (("America/La_Paz", "250 Bs"), ("America/Sao_Paulo", "20 USDT")):
+        ctx = b.new_context(viewport={"width": 390, "height": 844}, timezone_id=zona)
+        pg = ctx.new_page()
+        pg.goto(base + "#portones")
+        pg.wait_for_selector("#p-lista li")
+        pg.click(".p-tarjeta[data-v=batiente_2]")
+        pg.wait_for_selector("#hoja-pro[open]")
+        href = pg.get_attribute("#btn-whatsapp", "href") or ""
+        from urllib.parse import unquote
+        texto = unquote(href)
+        control("optiMAX Taller" in texto and f"({precio})" in texto and pg.inner_text("#pro-titulo") == "optiMAX Taller PRO",
+                f"PRO en {zona}: {precio} ({texto[-70:]})")
+        ctx.close()
 
 
 def pro(b, base, cap):
