@@ -19,13 +19,16 @@
 // Reja de ventana (25-nov, Max): «Nada / Pared»: paño de pared de 150 que sobresale 600 alrededor del hueco; la reja
 // adentro del hueco al ras de la cara de afuera o, si sobresale, apoyada sobre la cara (sobrepuesta).
 // three.js (vendor/three.min.js) se carga recién al abrir la vista (visor común: modulos/visor3d.js).
+// Ladrillo y adoquín (26-nov, Max): paredes (también la de la reja de ventana) de ladrillo visto, columnas lisas color
+// cemento y piso de adoquín en canasta (modulos/texturas3d.js). Solo la pinta.
 import { abrirVisor, cerrarVisor } from "./visor3d.js";
+import { texturaLadrillo, texturaAdoquin, enMm, TILE_LADRILLO, TILE_ADOQUIN, COLOR_CEMENTO } from "./texturas3d.js";
 
 // ámbar de herrería (25-nov, Max): marco más oscuro, travesaños en el color del oficio, barrotes y chapa más claros
 const COLOR = { MARCO: "#a65507", TRAVESANO: "#d97706", BARRA: "#f4b54f", CHAPA: "#f7deb0" };
 const BORDE = "#3d2203";
 const REDONDOS = new Set(["tubo_red", "macizo_red"]);
-const MURO = "#e6dccb", MURO_BORDE = "#a39478";
+const MURO_BORDE = "#8f5a45", CEMENTO_BORDE = "#8a867e";
 export const ENTORNOS = ["Nada", "Columnas", "Paredes"];
 export const ENTORNOS_REJA = ["Nada", "Pared"];
 const PANO = 600;                                   // pared alrededor del hueco de la ventana
@@ -191,12 +194,17 @@ export async function abrir3D(R, perfiles, { espChapa = 1.5, piso = false, pasan
     opciones: reja ? ENTORNOS_REJA : ENTORNOS, inicial: reja ? ultimoReja : ultimoEntorno,
     alCambiar: (op) => { if (reja) ultimoReja = op; else ultimoEntorno = op; },
     armar: (T, basura) => {
-      const mat = new T.MeshStandardMaterial({ color: MURO, roughness: 0.9, metalness: 0 });
+      const ladrillo = texturaLadrillo(T);
+      const mat = new T.MeshStandardMaterial({ map: ladrillo, color: "#ffffff", roughness: 0.9, metalness: 0 });
       const lin = new T.LineBasicMaterial({ color: MURO_BORDE });
-      basura.push(mat, lin);
+      const matCol = new T.MeshStandardMaterial({ color: COLOR_CEMENTO, roughness: 0.95, metalness: 0 });
+      const linCol = new T.LineBasicMaterial({ color: CEMENTO_BORDE });
+      basura.push(ladrillo, mat, lin, matCol, linCol);
       const out = { Nada: null };
       for (const [op, cajas] of Object.entries(entorno3D(R, tipo, zAdelante, zAtras, sobrepuesta))) {
         const g = new T.Group();
+        const columnas = op === "Columnas";
+        g.userData.textura = columnas ? "cemento" : "ladrillo";         // para las pruebas (data-texturas)
         if (reja) {
           // la pared de la ventana: una sola pieza con el hueco (sin las uniones de los 4 paños)
           const xs = cajas.flatMap((c) => [c[0], c[1]]), ys = cajas.flatMap((c) => [c[2], c[3]]);
@@ -209,6 +217,7 @@ export async function abrir3D(R, perfiles, { espChapa = 1.5, piso = false, pasan
           sh.holes.push(hu);
           const geo = new T.ExtrudeGeometry(sh, { depth: z1 - z0, bevelEnabled: false });
           geo.translate(0, 0, z0);
+          enMm(T, geo, TILE_LADRILLO);
           const ed = new T.EdgesGeometry(geo, 30);
           basura.push(geo, ed);
           g.add(new T.Mesh(geo, mat), new T.LineSegments(ed, lin));
@@ -218,16 +227,18 @@ export async function abrir3D(R, perfiles, { espChapa = 1.5, piso = false, pasan
         for (const [x0, x1, y0, y1, z0, z1] of cajas) {
           const geo = new T.BoxGeometry(x1 - x0, y1 - y0, z1 - z0);
           geo.translate((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
+          if (!columnas) enMm(T, geo, TILE_LADRILLO);
           const ed = new T.EdgesGeometry(geo);
           basura.push(geo, ed);
-          g.add(new T.Mesh(geo, mat), new T.LineSegments(ed, lin));
+          g.add(new T.Mesh(geo, columnas ? matCol : mat), new T.LineSegments(ed, columnas ? linCol : lin));
         }
         out[op] = g;
       }
       return out;
     },
   } : null;
-  await abrirVisor({ piso, margen: 200, entorno, clase: "of-herreria", armar: (T, grupo, basura) => {
+  const pisoTextura = (T) => ({ map: texturaAdoquin(T), tile: TILE_ADOQUIN, nombre: "adoquin", enMm });
+  await abrirVisor({ piso, pisoTextura, margen: 200, entorno, clase: "of-herreria", armar: (T, grupo, basura) => {
     const mats = {}, lineas = new T.LineBasicMaterial({ color: BORDE });
     basura.push(lineas);
     const material = (c) => {

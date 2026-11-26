@@ -6,5 +6,6 @@ export {
   BoxGeometry, Shape, HemisphereLight, DirectionalLight, Color, Vector3, Box3, EdgesGeometry, LineSegments,
   LineBasicMaterial, SRGBColorSpace, Quaternion, MOUSE, TOUCH,
   BufferGeometry, Float32BufferAttribute, DoubleSide,              // chapa (25-nov): mallas de las plantillas enrolladas
+  CanvasTexture, RepeatWrapping,                                   // portones (26-nov): ladrillo, adoquín
 } from "three";
 export { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";

@@ -18,9 +18,10 @@ export const visorAbierto = () => !!abierta;
  *   piso: dibuja el piso debajo (portones; la reja de ventana va en la pared).
  *   margen: mm de aire alrededor de lo dibujado para el encuadre (portones 200; chapa, una parte de la pieza).
  *   zArriba: las piezas vienen con z hacia arriba (chapa); se giran para que three.js (y arriba) las vea paradas.
+ *   pisoTextura(T) → { map, tile: [ancho, hondo] mm, nombre, enMm }: dibujo del piso (portones: adoquín, 26-nov).
  */
 export async function abrirVisor({ armar, piso = false, margen = 200, zArriba = false, fondo = "#eef1f4", entorno = null,
-  clase = "" }) {
+  clase = "", pisoTextura = null }) {
   if (abierta) return;
   const capa = document.createElement("div");
   capa.className = `p-completa p-3d${clase ? ` ${clase}` : ""}`;
@@ -89,6 +90,8 @@ export async function abrirVisor({ armar, piso = false, margen = 200, zArriba = 
     try { grupos = entorno.armar(T, basura) || {}; } catch (e) { grupos = {}; console.warn("Alrededor del 3D:", e); }
     for (const g of Object.values(grupos)) if (g) escena.add(g);
     capa.dataset.armados = Object.keys(grupos).filter((k) => grupos[k]).join(",");   // para las pruebas
+    capa.dataset.texturas = Object.entries(grupos).filter(([, g]) => g?.userData.textura)
+      .map(([k, g]) => `${k}:${g.userData.textura}`).join(",");
   }
   const elegido = entorno && entorno.opciones.includes(entorno.inicial) ? entorno.inicial : entorno?.opciones[0];
   const mostrar = (op) => {
@@ -106,7 +109,11 @@ export async function abrirVisor({ armar, piso = false, margen = 200, zArriba = 
     const ancho = tx + 1200, hondo = Math.max(1200, tx * 0.6, 2 * Math.max(Math.abs(todo.min.z), Math.abs(todo.max.z)) + 600);
     const geo = new T.BoxGeometry(ancho, 20, hondo);
     geo.translate(cx, -10, 0);
-    const m = new T.MeshStandardMaterial({ color: "#dcd6cb", roughness: 0.95, metalness: 0 });
+    let tex = null;
+    try { tex = pisoTextura ? pisoTextura(T) : null; } catch (e) { tex = null; console.warn("Piso del 3D:", e); }
+    if (tex) { tex.enMm(T, geo, tex.tile); basura.push(tex.map); capa.dataset.piso = tex.nombre; }
+    const m = new T.MeshStandardMaterial(tex ? { map: tex.map, color: "#ffffff", roughness: 0.95, metalness: 0 }
+      : { color: "#dcd6cb", roughness: 0.95, metalness: 0 });
     basura.push(geo, m);
     escena.add(new T.Mesh(geo, m));
   }
