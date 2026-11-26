@@ -16,16 +16,17 @@
 </head>
 <body>
   <header class="cabecera">
-    <a href="#" class="logo-enlace" aria-label="optiMAX, inicio"><img class="logo" src="img/logo.png" alt="optiMAX" width="443" height="96"></a>
+    <a href="#" class="logo-enlace" aria-label="optiMAX Taller, inicio"><img class="logo" src="img/logo.png" alt="optiMAX" width="443" height="96"></a>
+    <span class="marca-taller" aria-hidden="true">TALLER</span>
     <div class="cab-acc">
-      <button class="btn-instalar" type="button" id="btn-instalar" hidden>
-        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M12 7v7M9 11l3 3 3-3"/></svg>Instalar</button>
+      <button class="btn-instalar" type="button" id="btn-instalar" aria-label="Instalar la app" title="Instalar la app" hidden>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M12 7v7M9 11l3 3 3-3"/></svg></button>
       <button class="btn-pro" type="button" data-abre-pro>Comprar PRO</button>
     </div>
   </header>
 
-  <!-- instalar la app (instalar.js): en el inicio hasta que la cierren con la ×; después queda el botón de la cabecera -->
-  <section class="instalar" id="instalar" aria-labelledby="instalar-tit" hidden>
+  <!-- instalar la app (instalar.js): cartel flotante al abrir; cerrado con la ×, queda el ícono de la cabecera -->
+  <section class="instalar" id="instalar" role="dialog" aria-labelledby="instalar-tit" hidden>
     <svg class="instalar-ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M12 7v7M9 11l3 3 3-3"/></svg>
     <div class="instalar-txt">
       <b id="instalar-tit">Instalá la app</b>

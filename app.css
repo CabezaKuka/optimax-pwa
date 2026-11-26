@@ -52,32 +52,40 @@ button { cursor: pointer; }
 
 /* ------------------------------------------------------------ cabecera */
 .cabecera {
-  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  display: flex; align-items: center; gap: 8px;
   padding: calc(10px + env(safe-area-inset-top)) 16px 10px;
+  background: var(--hoja); border-bottom: 1px solid var(--linea); margin-bottom: 10px;
 }
+@media (min-width: 900px) { .cabecera { padding-inline: 28px; } }
 .logo { height: 26px; width: auto; display: block; }
+/* etiqueta negra al lado del logo */
+.marca-taller {
+  padding: 3px 7px; border-radius: 6px; background: var(--tinta); color: #fff;
+  font-size: 11px; font-weight: 700; letter-spacing: .12em; line-height: 1.2;
+}
 .btn-pro {
   background: var(--rojo); color: #fff; border: 0; border-radius: var(--radio);
   font-weight: 600; font-size: 15px; padding: 9px 14px; min-height: 40px;
 }
 .btn-pro:hover { background: var(--rojo-osc); }
 
-.cab-acc { display: flex; align-items: center; gap: 8px; }
+.cab-acc { display: flex; align-items: center; gap: 8px; margin-left: auto; }
 .btn-instalar {
-  display: inline-flex; align-items: center; gap: 4px; min-height: 40px; padding: 0 12px 0 9px;
+  display: grid; place-items: center; width: 42px; height: 42px; padding: 0;
   border: 1.5px solid var(--tinta); border-radius: var(--radio); background: var(--hoja); color: var(--tinta);
-  font-weight: 600; font-size: 15px;
 }
-.btn-instalar svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-@media (max-width: 374px) { .logo { height: 22px; } .btn-instalar { padding-inline: 8px 10px; } .btn-pro { padding-inline: 11px; } }
+.btn-instalar svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+@media (max-width: 374px) { .logo { height: 22px; } .btn-pro { padding-inline: 11px; } }
 
-/* tarjeta de instalar (instalar.js): solo en el inicio, hasta que la cierran */
+/* cartel flotante de instalar (instalar.js): aparece al abrir la app, se cierra con la × hasta la próxima vez */
 .instalar {
-  display: flex; align-items: center; gap: 12px; max-width: 688px; margin: 0 16px 6px; padding: 12px 6px 12px 14px;
+  position: fixed; z-index: 40; left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom));
+  max-width: 520px; margin: 0 auto; display: flex; align-items: center; gap: 12px; padding: 12px 6px 12px 14px;
   background: var(--hoja); border: 1px solid var(--linea); border-radius: var(--radio-g);
+  box-shadow: 0 10px 30px rgb(15 20 26 / .22); animation: subir .25s ease-out;
 }
-@media (min-width: 720px) { .instalar { margin-inline: auto; } }
-@media (min-width: 900px) { .instalar { max-width: 984px; } }
+@media (prefers-reduced-motion: reduce) { .instalar { animation: none; } }
+body.con-instalar { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
 .instalar-ico { flex: none; width: 30px; height: 30px; fill: none; stroke: var(--tinta); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .instalar-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; font-size: 14px; color: var(--gris); line-height: 1.3; }
 .instalar-txt b { font-size: 16px; color: var(--tinta); }
@@ -139,48 +147,86 @@ button { cursor: pointer; }
 /* foco de los campos con el color del oficio */
 :focus-visible { outline-color: var(--of); }
 
-/* texto del oficio sobre blanco (el --of de herrería no da contraste con letra chica) */
+/* texto y flecha del oficio sobre blanco (el --of de herrería no da contraste con letra chica) */
 .of-chapa { --of-texto: #1d4ed8; }
 .of-herreria { --of-texto: #9a4f04; }
 .of-carpinteria { --of-texto: #15803d; }
 
-.inicio { max-width: 720px; margin: 0 auto; padding: 4px 16px 8px; }
-.inicio-tit {
-  margin: 8px 2px 12px; font: 700 28px/1.05 "Barlow SC", "Barlow", system-ui, sans-serif; color: var(--tinta);
+.inicio { max-width: 720px; margin: 0 auto; padding: 2px 16px 12px; }
+@media (min-width: 900px) { .inicio { max-width: 1040px; padding-inline: 28px; } }
+.en-inicio .pie { display: none; }               /* el pie (optimax.lat, titular de la PRO) solo en los módulos */
+/* portada: la imagen de optimax.lat/taller y una línea */
+.ini-portada { margin: 0; overflow: hidden; border-radius: 20px; background: var(--hoja); box-shadow: 0 2px 10px rgb(26 33 41 / .10); }
+.ini-portada img {
+  display: block; width: 100%; height: auto; aspect-ratio: 1000 / 525; max-height: 300px; object-fit: contain; background: #eef2f5;
 }
-.mods { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-@media (min-width: 900px) {
-  .inicio { max-width: 1040px; padding-inline: 28px; }
-  .mods { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+.ini-portada p { margin: 0; padding: 12px 16px 14px; font-size: 15px; color: var(--gris); line-height: 1.35; }
+/* tira de la PRO (solo DEMO): abre la hoja de compra */
+.ini-pro {
+  display: flex; align-items: center; gap: 12px; width: 100%; margin-top: 12px; padding: 14px 16px; border: 0;
+  border-radius: var(--radio-g); background: var(--tinta); color: #dbe3ea; text-align: left; font-size: 14px; line-height: 1.35;
 }
+.ini-pro b { color: #fff; }
+.ini-pro-txt { flex: 1; min-width: 0; }
+.ini-precio { flex: none; text-align: right; font-size: 12px; color: var(--cota); }
+.ini-precio b { display: block; font: 700 22px/1 "Barlow SC", "Barlow", sans-serif; color: #ff6b6b; margin-bottom: 2px; }
+.ini-tit { display: flex; align-items: baseline; justify-content: space-between; margin: 18px 2px 8px; }
+.ini-tit h1 { margin: 0; font: 700 21px/1.1 "Barlow SC", "Barlow", system-ui, sans-serif; }
+.ini-tit span { font-size: 13px; color: var(--gris); }
+/* módulos en lista: foto, oficio, nombre, descripción y flecha */
+.mods { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+@media (min-width: 900px) { .mods { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; } }
 .mod {
-  display: flex; flex-direction: column; height: 100%; overflow: hidden; border-radius: var(--radio-g);
-  background: var(--hoja); border: 1px solid transparent; color: var(--tinta); text-decoration: none;
+  display: flex; align-items: center; gap: 12px; height: 100%; box-sizing: border-box; padding: 8px 10px 8px 8px;
+  border-radius: var(--radio-g); background: var(--hoja); border: 1px solid transparent; color: var(--tinta); text-decoration: none;
 }
 a.mod { box-shadow: 0 1px 3px rgb(26 33 41 / .08); }
 a.mod:hover { border-color: var(--of); }
 a.mod:active { filter: brightness(.97); }
-/* recuadro de la foto: fondo suave del oficio; la foto entera (o cubriéndolo todo, con .llena) */
+/* recuadro de la foto (proporción fija: no se corta en la tablet); la foto entera, o cubriéndolo todo con .llena */
 .mod-img {
-  flex: none; height: 124px; display: grid; place-items: center; padding: 6px 10px; background: var(--of-suave);
+  flex: 0 0 92px; aspect-ratio: 4 / 3; box-sizing: border-box; display: grid; place-items: center; padding: 4px 6px;
+  border-radius: 10px; overflow: hidden; background: var(--of-suave);
 }
-.mod-img img { display: block; max-width: 100%; max-height: 112px; width: auto; height: auto; }
+.mod-img img { display: block; max-width: 100%; max-height: 100%; width: auto; height: auto; }
 .mod-img.llena { padding: 0; }
-.mod-img.llena img { width: 100%; height: 124px; max-height: none; object-fit: cover; }
+.mod-img.llena img { width: 100%; height: 100%; max-height: none; object-fit: cover; }
 .mod-ico {
-  width: 64px; height: 64px; border-radius: 14px; display: grid; place-items: center; background: var(--of); color: #fff;
+  width: 52px; height: 52px; border-radius: 12px; display: grid; place-items: center; background: var(--of); color: #fff;
 }
-.mod-ico svg { width: 42px; height: 42px; }
-.mod-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 10px 12px 12px; }
-.mod-of { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--of-texto, var(--of)); }
+.mod-ico svg { width: 36px; height: 36px; }
+.mod-txt { flex: 1; display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.mod-of { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--of-texto, var(--of)); }
 .mod-nom { font: 700 18px/1.1 "Barlow SC", "Barlow", system-ui, sans-serif; }
-.mod-desc { margin-top: 2px; font-size: 14px; color: var(--gris); line-height: 1.3; }
+.mod-desc { margin-top: 2px; font-size: 13.5px; color: var(--gris); line-height: 1.3; }
+.mod-ir { flex: none; width: 22px; height: 22px; color: var(--of-texto, var(--of)); }
 .mod-off .mod-img { opacity: .5; }
 .mod-off .mod-nom { color: #3c4652; }
 .pronto {
   align-self: flex-start; margin-top: 6px; padding: 2px 10px; border-radius: 12px;
   font-size: 13px; font-weight: 700; color: var(--of-texto, var(--of)); background: var(--of-suave);
 }
+/* Mis trabajos (todos los módulos) */
+.ini-trabajos {
+  display: flex; align-items: center; gap: 12px; width: 100%; margin-top: 14px; padding: 12px 14px;
+  border: 1.5px dashed var(--cota); border-radius: var(--radio-g); background: transparent; color: var(--gris);
+  text-align: left; font-size: 14px; line-height: 1.3;
+}
+.ini-trabajos svg { flex: none; width: 26px; height: 26px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linejoin: round; }
+.ini-trabajos b { display: block; color: var(--tinta); font-size: 15px; }
+.ini-trabajos > span:nth-child(2) { flex: 1; min-width: 0; }
+.ini-trabajos.con { border-style: solid; border-color: var(--linea); background: var(--hoja); }
+.ini-trabajos .tag { flex: none; }
+.ini-cuenta { flex: none; font: 700 18px var(--num); color: var(--tinta); }
+.it-lista { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; }
+.it-abrir {
+  display: flex; align-items: center; gap: 10px; width: 100%; min-height: 52px; padding: 8px 12px; text-align: left;
+  border: 1px solid var(--linea); border-radius: var(--radio); background: var(--hoja); color: var(--tinta);
+}
+.it-abrir .it-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.it-abrir b { font-size: 16px; overflow-wrap: anywhere; }
+.it-abrir small { font-size: 13px; color: var(--gris); }
+.it-mod { flex: none; font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--of-texto, var(--of)); }
 
 /* ------------------------------------------------------------ ubicación (← Inicio) */
 .migas { display: flex; align-items: center; gap: 10px; padding: 0 16px 8px; font-size: 15px; }
