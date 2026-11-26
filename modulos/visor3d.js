@@ -4,6 +4,8 @@
 //
 // abrirVisor({ armar, piso, margen, ... }): armar(T, grupo, basura) agrega las mallas al grupo (y lo que hay que
 // liberar a basura) y devuelve { aviso, datos } (datos = atributos data-* de la capa, para las pruebas).
+// entorno (portones, 25-nov): botones partidos abajo («Nada / Columnas / Paredes») que muestran uno de los grupos que
+// arma entorno.armar(T, basura) → {opción: Group | null}; no cambia el encuadre al cambiar (sí el piso, que los cubre).
 
 let abierta = null;
 
@@ -17,10 +19,11 @@ export const visorAbierto = () => !!abierta;
  *   margen: mm de aire alrededor de lo dibujado para el encuadre (portones 200; chapa, una parte de la pieza).
  *   zArriba: las piezas vienen con z hacia arriba (chapa); se giran para que three.js (y arriba) las vea paradas.
  */
-export async function abrirVisor({ armar, piso = false, margen = 200, zArriba = false, fondo = "#eef1f4" }) {
+export async function abrirVisor({ armar, piso = false, margen = 200, zArriba = false, fondo = "#eef1f4", entorno = null,
+  clase = "" }) {
   if (abierta) return;
   const capa = document.createElement("div");
-  capa.className = "p-completa p-3d";
+  capa.className = `p-completa p-3d${clase ? ` ${clase}` : ""}`;
   capa.innerHTML = `<div class="p-completa-barra">
       <button type="button" class="p-3d-frente">Frente</button><button type="button" class="p-3d-girar">Girar</button>
       <button type="button" class="p-c-cerrar">Cerrar</button></div>
@@ -80,13 +83,28 @@ export async function abrirVisor({ armar, piso = false, margen = 200, zArriba = 
   for (const [k, v] of Object.entries(res.datos || {})) capa.dataset[k] = v;
   if (zArriba) grupo.rotation.x = -Math.PI / 2;            // z de la pieza → y de three.js
   escena.add(grupo);
+  // columnas / paredes alrededor (portones): un grupo por opción, se ve el elegido
+  let grupos = {};
+  if (entorno) {
+    try { grupos = entorno.armar(T, basura) || {}; } catch { grupos = {}; }
+    for (const g of Object.values(grupos)) if (g) escena.add(g);
+  }
+  const elegido = entorno && entorno.opciones.includes(entorno.inicial) ? entorno.inicial : entorno?.opciones[0];
+  const mostrar = (op) => {
+    for (const [k, g] of Object.entries(grupos)) if (g) g.visible = k === op;
+    capa.dataset.entorno = op;
+  };
   grupo.updateMatrixWorld(true);
   const caja = new T.Box3().setFromObject(grupo);
+  if (grupos[elegido]) { grupos[elegido].updateMatrixWorld(true); caja.union(new T.Box3().setFromObject(grupos[elegido])); }
   const centro = caja.getCenter(new T.Vector3()), tam = caja.getSize(new T.Vector3());
   if (piso) {
-    const ancho = tam.x + 1200, hondo = Math.max(1200, tam.x * 0.6);
+    const todo = caja.clone();                           // el piso cubre también lo que se puede prender después
+    for (const g of Object.values(grupos)) if (g) { g.updateMatrixWorld(true); todo.union(new T.Box3().setFromObject(g)); }
+    const tx = todo.max.x - todo.min.x, cx = (todo.max.x + todo.min.x) / 2;
+    const ancho = tx + 1200, hondo = Math.max(1200, tx * 0.6, 2 * Math.max(Math.abs(todo.min.z), Math.abs(todo.max.z)) + 600);
     const geo = new T.BoxGeometry(ancho, 20, hondo);
-    geo.translate(centro.x, -10, 0);
+    geo.translate(cx, -10, 0);
     const m = new T.MeshStandardMaterial({ color: "#dcd6cb", roughness: 0.95, metalness: 0 });
     basura.push(geo, m);
     escena.add(new T.Mesh(geo, m));
@@ -137,6 +155,17 @@ export async function abrirVisor({ armar, piso = false, margen = 200, zArriba = 
     requestAnimationFrame(cuadro);
   };
   requestAnimationFrame(cuadro);
+  if (entorno) {
+    const fila = document.createElement("div");
+    fila.className = "segmentos p-3d-entorno";
+    fila.setAttribute("role", "radiogroup");
+    fila.setAttribute("aria-label", "Alrededor del portón");
+    fila.innerHTML = entorno.opciones.map((op) =>
+      `<label><input type="radio" name="p-3d-entorno" value="${op}"${op === elegido ? " checked" : ""}><span>${op}</span></label>`).join("");
+    fila.addEventListener("change", (e) => { mostrar(e.target.value); entorno.alCambiar?.(e.target.value); });
+    lienzo.append(fila);
+    mostrar(elegido);
+  }
   est.cerrar = () => {
     vivo = false;
     obs.disconnect();
