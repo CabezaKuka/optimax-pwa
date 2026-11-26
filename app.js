@@ -2,7 +2,7 @@
 // Cada módulo (modulos/*.js) exporta montar(contenedor) y desmontar().
 import { moduloPorId } from "./modulos.js";
 import * as inicio from "./inicio.js";
-import { armarHojaPro, ponerContexto, abrirActivar } from "./hoja-pro.js";
+import { armarHojaPro, ponerContexto, abrirActivar, seguirCompra } from "./hoja-pro.js";
 import { esPro, DESARROLLO, iniciar, licencia, avisoLicencia, revalidar } from "./licencia.js";
 
 const $ = (s) => document.querySelector(s);
@@ -106,6 +106,7 @@ if (esPro()) {
   $("#aviso-lic").hidden = false;
 }
 armarHojaPro();
+if (!esPro()) seguirCompra();                   // compra en curso: la hoja sigue esperando la confirmación del pago
 armarInstalacion();
 addEventListener("hashchange", ir);
 ir();
