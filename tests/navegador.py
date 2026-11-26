@@ -242,8 +242,8 @@ def ver_3d(pg, que, cap=None, nombre=None, entorno=None):
     pg.wait_for_selector(".p-3d[data-piezas]", timeout=15000)
     pg.wait_for_timeout(700)
     n3d = int(pg.get_attribute(".p-3d", "data-piezas"))
-    control(n3d > 0 and pg.locator(".p-3d canvas").count() == 1 and pg.locator(".p-3d .error-txt").count() == 0,
-            f"{que}: vista 3D con {n3d} piezas")
+    control(n3d > 0 and pg.locator(".p-3d canvas").count() == 1 and pg.locator(".p-3d .error-txt").count() == 0 and
+            "null" not in (pg.get_attribute(".p-3d", "data-planos") or ""), f"{que}: vista 3D con {n3d} piezas")
     if entorno is None:
         control(pg.locator(".p-3d-entorno").count() == 0, f"{que}: sin columnas ni paredes")
     else:
@@ -760,6 +760,44 @@ def pro(b, base, cap):
     pg.click(".p-tarjeta[data-v=chapa]")
     pg.wait_for_timeout(1500)
     ver_3d(pg, "portones PRO (chapa ciega)", cap, "pro_chapa_3d", "Nada")
+    # travesaño doble y paños a lo ancho (solo PWA, 26-nov)
+    pg.click(".p-tarjeta[data-v=batiente_2]")
+    pg.click(".p-tarjeta[data-v=verticales]")
+    pg.wait_for_timeout(800)
+    control(pg.is_visible(".campo[data-k=trav_modo]") and pg.is_checked("input[name=p-trav_modo][value=repartidos]")
+            and pg.is_hidden(".campo[data-k=franja]") and pg.is_hidden(".campo[data-k=n_panos]"),
+            "doble: «Repartidos / Doble al centro», repartidos por defecto")
+    pg.check("input[name=p-trav_modo][value=doble]")
+    pg.wait_for_timeout(800)
+    control(pg.is_hidden(".campo[data-k=n_trav]") and pg.is_visible(".campo[data-k=franja]") and
+            pg.is_visible(".campo[data-k=n_franja]") and pg.is_hidden(".campo[data-k=armado]") and
+            pg.is_hidden(".campo[data-k=trav_lado]"), "doble: franja y barrotes; sin cantidad ni armado")
+    pg.fill("#p-franja", "250")
+    for _ in range(4):
+        pg.click("[data-paso=n_franja][data-d='1']")
+    pg.wait_for_timeout(1500)
+    pg.wait_for_selector("#p-opt", state="hidden", timeout=20000)
+    control(pg.inner_text("#p-n_franja") == "4" and "barrote de la franja" in pg.inner_text("#p-lista") and
+            pg.is_hidden("#p-error"), "doble: 4 barrotes en la franja en la lista")
+    item = pg.evaluate("JSON.parse(localStorage['optimax-portones']).item")
+    control(item["trav_modo"] == "doble" and item["franja"] == 250 and item["n_franja"] == 4 and item["n_trav"] == 2,
+            "doble: se guarda (2 travesaños para la PC)")
+    ver_3d(pg, "portones PRO (travesaño doble)", cap, "pro_doble_3d", "Columnas")
+    pg.click(".p-tarjeta[data-v=chapa]")
+    pg.wait_for_timeout(800)
+    control(pg.is_visible(".campo[data-k=n_panos]") and pg.is_hidden(".campo[data-k=chapa_trav]") and
+            pg.is_visible(".campo[data-k=perfil_relleno]"), "paños: «Paños a lo ancho»; relleno por los barrotes de la franja")
+    for _ in range(2):
+        pg.click("[data-paso=n_panos][data-d='1']")
+    pg.wait_for_timeout(1500)
+    pg.wait_for_selector("#p-opt", state="hidden", timeout=20000)
+    control(pg.inner_text("#p-n_panos") == "3" and "parante" in pg.inner_text("#p-lista") and pg.is_hidden("#p-error")
+            and pg.inner_text("label[for=p-perfil_trav]") == "Travesaños y parantes", "paños: 3 paños con parantes")
+    ver_3d(pg, "portones PRO (paños de chapa)", cap, "pro_panos_3d", "Nada")
+    pg.click(".p-tarjeta[data-v=horizontales]")
+    pg.wait_for_timeout(500)
+    control(pg.is_hidden(".campo[data-k=trav_modo]") and pg.is_visible(".campo[data-k=n_trav]") and
+            pg.is_hidden(".campo[data-k=n_panos]"), "horizontales: sin doble ni paños")
     pg.goto(base + "?pro=0")
     pg.wait_for_selector(".inicio")
     control(pg.is_visible(".btn-pro"), "?pro=0: vuelve la DEMO")

@@ -9,7 +9,8 @@
 // Profundidad (z, hacia el que mira): el marco centrado en z = 0; el resto en capas desde la cara de adelante del marco
 // hacia atrás (25-nov, Max): a tope, el relleno y los travesaños en una capa; pasantes, el de adelante (travesaño o
 // barrotes, a elegir) y el otro detrás; cuadrícula / rombos cruzados, una familia (verticales / diagonal «/») adelante y
-// la otra detrás; chapa con los travesaños atrás, la chapa adelante; chapa a tope, paños y travesaños en una capa. Marco de ángulo (25-nov, Max): travesaños, relleno y chapa adentro de la L, apoyados detrás de
+// la otra detrás; chapa con los travesaños atrás, la chapa adelante; chapa a tope, paños y travesaños en una capa.
+// Travesaño doble y paños a lo ancho (26-nov, Max): a tope, en la capa del relleno (parantes = travesaños). Marco de ángulo (25-nov, Max): travesaños, relleno y chapa adentro de la L, apoyados detrás de
 // la cara (el cálculo ya los alarga hasta las alas). Unidades en mm, y hacia arriba (como la elevación).
 // Alrededor (25-nov, Max): «Nada / Columnas / Paredes» solo en portones (entorno3D). Columnas de 300 × 300 y paredes
 // de 150 × 1000, las dos 200 mm más altas que el portón, por fuera del vano. Batientes: en el plano del portón.
@@ -96,7 +97,8 @@ export function piezas3D(R, perfiles, { espChapa = 1.5, pasantes = false, travAt
       : (dir[0] * dir[1] > 0 ? "famA" : "famB");
   };
   let capas;
-  if (relleno === "chapa") capas = chapaTrav === "a_tope" ? [["chapa", "trav"]] : [["chapa"], ["trav"]];
+  // chapa: los barrotes de la franja del travesaño doble (solo PWA, 26-nov) van en la capa de los travesaños
+  if (relleno === "chapa") capas = chapaTrav === "a_tope" ? [["chapa", "trav", "barra"]] : [["chapa"], ["trav", "barra"]];
   else {
     const rel = cruzadas ? [["famA"], ["famB"]] : [["barra"]];
     if (pasantes) capas = travAtras ? [...rel, ["trav"]] : [["trav"], ...rel];
