@@ -5,6 +5,7 @@
 //   node tests/opciones_pwa.mjs
 import * as P from "../portones/motor.js";
 import { piezas3D, entorno3D, ENTORNOS, ENTORNOS_REJA } from "../modulos/portones3d.js";
+import { uvDe, TILE_LADRILLO, TILE_ADOQUIN, LADRILLO, ADOQUIN } from "../modulos/texturas3d.js";
 
 let bien = 0, mal = 0;
 const ok = (que, cond, extra = "") => { if (cond) bien++; else { mal++; console.log(`MAL ${que} ${extra}`); } };
@@ -187,6 +188,19 @@ for (const relleno of ["rombos", "cuadricula"]) {
   const z1 = (k) => [...new Set(pz.filter((q) => q.capa === k).map((q) => P.red(q.z1, 3)))];
   ok("3D pasantes: travesaño adelante y barrotes detrás (sin cambios)", JSON.stringify(z1("TRAVESANO")) === "[20]" && JSON.stringify(z1("BARRA")) === "[0]",
     `${z1("TRAVESANO")} / ${z1("BARRA")}`);
+}
+
+// texturas del alrededor (26-nov, Max): ladrillo 200 × 75 + junta 14, adoquín 200 × 100 + junta 8, en mm reales
+ok("ladrillo: el dibujo repite cada 8 ladrillos y 6 hileras", TILE_LADRILLO[0] === 8 * 214 && TILE_LADRILLO[1] === 6 * 89 &&
+  LADRILLO.largo === 200 && LADRILLO.alto === 75 && LADRILLO.junta === 14);
+ok("adoquín: canasta de 2 × 108 = 216 por celda, 4 × 4 celdas", TILE_ADOQUIN[0] === 864 && TILE_ADOQUIN[1] === 864 &&
+  ADOQUIN.largo === 200 && ADOQUIN.ancho === 100 && ADOQUIN.junta === 8);
+{
+  // cara de frente (normal z), de costado (normal x) y de arriba (normal y): cada una con sus dos medidas en mm
+  const pos = [856, 534, 50, 1712, 89, 40, 30, 120, 428];
+  const nor = [0, 0, 1, -1, 0, 0, 0, 1, 0];
+  const uv = [...uvDe(pos, nor, TILE_LADRILLO)].map((v) => P.red(v, 6));
+  ok("texturas en mm: frente x, y / costado z, y / arriba x, z", JSON.stringify(uv) === JSON.stringify([0.5, 1, 40 / 1712, 1 / 6, 30 / 1712, 428 / 534].map((v) => P.red(v, 6))), JSON.stringify(uv));
 }
 
 console.log(`${bien} de ${bien + mal} OK`);

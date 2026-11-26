@@ -249,6 +249,13 @@ def ver_3d(pg, que, cap=None, nombre=None, entorno=None):
     else:
         control(pg.locator(".p-3d-entorno label").count() == (2 if entorno in ("Pared",) else 3) and
                 pg.get_attribute(".p-3d", "data-entorno") in ("Nada", "Columnas", "Paredes", "Pared"), f"{que}: botones del alrededor")
+        tx = pg.get_attribute(".p-3d", "data-texturas") or ""
+        if entorno == "Pared":
+            control(tx == "Pared:ladrillo" and pg.get_attribute(".p-3d", "data-piso") is None,
+                    f"{que}: pared de ladrillo, sin piso ({tx})")
+        else:
+            control("Paredes:ladrillo" in tx and "Columnas:cemento" in tx and pg.get_attribute(".p-3d", "data-piso") == "adoquin",
+                    f"{que}: paredes de ladrillo, columnas de cemento, piso de adoquín ({tx})")
         pg.click(f".p-3d-entorno label:has-text('{entorno}')")
         control(pg.get_attribute(".p-3d", "data-entorno") == entorno and pg.locator(".p-3d .error-txt").count() == 0 and
                 (entorno == "Nada" or entorno in (pg.get_attribute(".p-3d", "data-armados") or "").split(",")),
