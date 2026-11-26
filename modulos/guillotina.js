@@ -97,7 +97,7 @@ const campoMm = (id, rotulo) => `<div class="campo"><label class="rotulo" for="g
 const PLANTILLA = `
 <div class="app app-barras">
   <section class="b-datos" aria-label="Plancha y piezas">
-    <h1 class="titulo-figura">Guillotina y melamina</h1>
+    <h1 class="titulo-figura solo-lector">Guillotina y melamina</h1>
     <div class="grupo">
     <h2 class="sub">Plancha <button type="button" class="btn-sec btn-chico" id="g-admin">Editar planchas</button></h2>
     <div class="campo campo-ancho"><label class="rotulo" for="g-plancha">Material</label>

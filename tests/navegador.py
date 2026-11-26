@@ -831,6 +831,102 @@ def portones_arriba(b, base):
     ctx.close()
 
 
+def hoja_portones(b, base, cap=None):
+    """Rejas y portones en el celular con la hoja (26-nov, propuesta G): dibujo arriba + hoja de opciones + barra de 5
+    botones; medidas de muestra por tipo; 3D con paredes por defecto; títulos sin repetir; «Trabajos» al lado de Inicio."""
+    ctx = b.new_context(viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True)
+    pg = ctx.new_page()
+    errs = []
+    pg.on("pageerror", lambda e: errs.append(str(e)))
+    pg.goto(base + "?pro=1#portones")
+    pg.wait_for_selector("#p-dibujo svg")
+    pg.wait_for_timeout(500)
+    bot = lambda k: f"#p-hoja-nav [data-sec={k}]"
+    abierta = lambda: not pg.evaluate("document.querySelector('#p-hoja').classList.contains('cerrada')")
+    alto = lambda: pg.locator("#p-dibujo").bounding_box()["height"]
+    control(pg.locator("#p-hoja-nav button").count() == 5 and
+            [pg.inner_text(f"#p-hoja-nav button >> nth={k}") for k in range(5)] == ["Tipo", "Medidas", "Perfiles", "Relleno", "Lista"],
+            "hoja: barra con Tipo · Medidas · Perfiles · Relleno · Lista")
+    control(abierta() and pg.get_attribute(bot("tipo"), "aria-current") == "true" and pg.is_visible("#p-tipos"),
+            "hoja: empieza abierta, en «Tipo»")
+    control(pg.evaluate("document.documentElement.scrollHeight <= innerHeight + 1"), "hoja: la página no se desplaza (todo en una pantalla)")
+    a0 = alto()
+    hoja_y = pg.locator("#p-hoja").bounding_box()["y"]
+    caja = pg.locator(".p-elev").bounding_box()
+    control(a0 >= 150 and caja["y"] + caja["height"] <= hoja_y + 2, f"hoja: el dibujo entra arriba de la hoja ({a0:.0f} px)")
+    control(pg.is_visible(".btn-3d") and "3D" in pg.inner_text(".btn-3d"), "hoja: botón «Ver en 3D» destacado")
+    if cap:
+        pg.screenshot(path=f"{cap}/h_hoja.png")
+    pg.click(bot("relleno"))
+    pg.wait_for_timeout(800)
+    r = pg.locator("#p-rellenos").bounding_box()
+    control(pg.get_attribute(bot("relleno"), "aria-current") == "true" and hoja_y <= r["y"] < 844 - 62,
+            "hoja: «Relleno» lleva a los rellenos")
+    pg.click(bot("relleno"))
+    pg.wait_for_timeout(500)
+    control(not abierta() and alto() > a0 + 150, "hoja: tocar otra vez el botón la cierra y el dibujo crece")
+    pg.click(bot("medidas"))
+    pg.wait_for_timeout(800)
+    control(abierta() and pg.is_visible("#p-ancho") and pg.get_attribute(bot("medidas"), "aria-current") == "true", "hoja: «Medidas» la abre")
+    pg.click("#p-hoja-cerrar")
+    pg.wait_for_timeout(500)
+    control(not abierta(), "hoja: la × la cierra")
+    pg.click("#p-dibujo polygon[data-m=A] >> nth=0", force=True)
+    pg.wait_for_timeout(900)
+    li = pg.locator("#p-lista li.sel")
+    control(abierta() and li.count() == 1 and pg.get_attribute(bot("lista"), "aria-current") == "true" and
+            hoja_y < li.bounding_box()["y"] < 844 - 62, "hoja: tocar una pieza abre la lista con su renglón a la vista")
+    # medidas de muestra por tipo: reja 800 × 800, portones 3000 × 2000; las cambiadas a mano quedan
+    pg.click(bot("tipo"))
+    pg.wait_for_timeout(600)
+    pg.click(".p-tarjeta[data-v=reja_ventana]")
+    pg.wait_for_timeout(400)
+    control(pg.input_value("#p-ancho") == "800" and pg.input_value("#p-alto") == "800", "medidas: la reja de muestra 800 × 800")
+    pg.click(".p-tarjeta[data-v=batiente_2]")
+    pg.wait_for_timeout(500)
+    control(pg.input_value("#p-ancho") == "3000" and pg.input_value("#p-alto") == "2000", "medidas: al pasar a portón, 3000 × 2000")
+    pg.click(".p-tarjeta[data-v=batiente_1]")
+    pg.wait_for_timeout(500)
+    control(pg.input_value("#p-ancho") == "3000" and pg.input_value("#p-alto") == "2000", "medidas: el de 1 hoja también 3000 × 2000")
+    pg.fill("#p-ancho", "2500")
+    pg.locator("#p-ancho").blur()
+    pg.wait_for_timeout(400)
+    pg.click(".p-tarjeta[data-v=corredizo]")
+    pg.wait_for_timeout(500)
+    control(pg.input_value("#p-ancho") == "2500" and pg.input_value("#p-alto") == "2000", "medidas: cambiadas a mano, se quedan")
+    # 3D con paredes por defecto
+    pg.click("#p-3d")
+    pg.wait_for_selector(".p-3d[data-piezas]", timeout=15000)
+    control(pg.get_attribute(".p-3d", "data-entorno") == "Paredes", "3D: por defecto con paredes")
+    pg.click(".p-3d .p-c-cerrar")
+    # a lo ancho (PC) vuelve el formulario | resultado, sin hoja
+    pg.set_viewport_size({"width": 1366, "height": 820})
+    pg.wait_for_timeout(500)
+    control(pg.locator("#p-hoja, #p-hoja-nav").count() == 0 and
+            pg.evaluate("!!document.querySelector('.b-datos > .grupo #p-tipos') && !!document.querySelector('.b-res > #p-resultado #p-lista')"),
+            "hoja: en la PC no hay hoja y todo vuelve a su lugar")
+    pg.set_viewport_size({"width": 390, "height": 844})
+    pg.wait_for_timeout(500)
+    control(pg.locator("#p-hoja").count() == 1 and abierta(), "hoja: de vuelta en el celular, la hoja otra vez")
+    # títulos sin repetir y «Trabajos» en el renglón de Inicio
+    for mod, sel_ in (("portones", "#p-dibujo svg"), ("barras", "#piezas"), ("guillotina", "#piezas")):
+        pg.goto(base + "?pro=1#" + mod)
+        pg.wait_for_selector(sel_)
+        tit = pg.locator(".titulo-figura")
+        cab = pg.locator("#migas .trabajo-barra")
+        control(tit.count() == 1 and "solo-lector" in (tit.get_attribute("class") or "") and tit.bounding_box()["height"] <= 1
+                and cab.count() == 1 and abs(cab.bounding_box()["y"] - pg.locator("#migas .volver").bounding_box()["y"]) < 6,
+                f"{mod}: sin el título repetido y «Trabajo» al lado de Inicio")
+    pg.goto(base + "?pro=1#chapa")
+    pg.wait_for_selector("#chapas li")
+    control(pg.is_visible("#titulo-figura") and pg.locator("#migas .trabajo-barra").count() == 1, "chapa: el nombre de la figura se ve")
+    pg.click("#migas .volver")
+    pg.wait_for_selector(".inicio")
+    control(pg.locator("#migas .trabajo-barra").count() == 0, "inicio: sin la barra de trabajos")
+    control(not errs, f"hoja: errores de JS {errs}")
+    ctx.close()
+
+
 def pc(b, base, cap):
     ctx = b.new_context(viewport={"width": 1366, "height": 820})
     pg = ctx.new_page()
@@ -1257,6 +1353,8 @@ def main():
             celular(b, base, a.capturas)
             instalar(b, base, a.capturas)
             portones_arriba(b, base)
+            if os.path.isdir(os.path.join(RAIZ, "pro")):
+                hoja_portones(b, base, a.capturas)
             pc(b, base, a.capturas)
             if os.path.isdir(os.path.join(RAIZ, "pro")):
                 pro(b, base, a.capturas)

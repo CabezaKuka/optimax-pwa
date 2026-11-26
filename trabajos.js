@@ -55,10 +55,13 @@ export function armarTrabajos(lugar, cfg) {
   barra.innerHTML = `<button type="button" class="trabajo-btn" id="t-btn"${pro ? "" : ' data-abre-pro="trabajos"'}>
       <span class="t-ico">${CARPETA}</span>
       <span class="t-txt"><span class="t-rot">Trabajo</span><span class="t-nom" id="t-nom-actual"></span></span>
-      ${pro ? `<span class="t-ir">Guardar / abrir</span>` : `<span class="candado" aria-hidden="true"></span><span class="tag">PRO</span>`}
+      ${pro ? "" : `<span class="candado" aria-hidden="true"></span>`}
     </button>`;
-  const tit = lugar.querySelector(".titulo-figura");
-  if (tit) tit.after(barra); else lugar.prepend(barra);
+  // en el renglón de «← Inicio» (26-nov, Max: gana un renglón); sin ese renglón, donde estaba (arriba del módulo)
+  const migas = document.querySelector("#migas");
+  for (const b of document.querySelectorAll("#migas .trabajo-barra")) b.remove();
+  if (migas) migas.append(barra);
+  else { const tit = lugar.querySelector(".titulo-figura"); if (tit) tit.after(barra); else lugar.prepend(barra); }
   const hoja = document.createElement("dialog");
   hoja.className = "hoja-pro hoja-trabajos";
   hoja.id = "hoja-trabajos";
@@ -93,7 +96,7 @@ export function armarTrabajos(lugar, cfg) {
     mostrarNombre();
   }
   function mostrarNombre() {
-    barra.querySelector("#t-nom-actual").textContent = !pro ? "Guardar y abrir trabajos"
+    barra.querySelector("#t-nom-actual").textContent = !pro ? "Trabajos"
       : actual.nombre ? actual.nombre + (modificado() ? " (sin guardar)" : "") : "Sin guardar";
   }
   function aviso(txt, mal = false) {
