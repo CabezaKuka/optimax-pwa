@@ -168,5 +168,26 @@ ok("pared: sobrepuesta, la reja apoyada sobre la cara", so.every((c) => c[5] ===
 
 // por defecto, lo de siempre (lo controla la comparación con la PC)
 ok("por defecto: chapa atrás y cruzadas", P.ITEM_DEF.chapa_trav === "atras" && P.ITEM_DEF.cruce === "cruzadas");
+// 3D (26-nov, Max): travesaño más hondo que el relleno (40×20 con el 20 de frente = 40 de fondo) con rombos /
+// cuadrícula cruzados: la 2.ª familia apoya en la 1.ª (antes quedaba 20 mm atrás y sobresalía del marco)
+for (const relleno of ["rombos", "cuadricula"]) {
+  const it = { ...base, relleno, cruce: "cruzadas", luz_max: 150, angulo: 45, perfil_relleno: "Tubo cuadrado 20×20×1,5",
+    perfil_trav: "Tubo rectangular 40×20×2", frente_trav: "b" };
+  const c = calc(it);
+  const { piezas: pz, aviso } = piezas3D(c.resultados[0], perfiles, { relleno, cruce: "cruzadas" });
+  const zs = (k) => [...new Set(pz.filter((q) => q.capa === k).map((q) => `${P.red(q.z0, 3)}..${P.red(q.z1, 3)}`))].sort();
+  ok(`3D ${relleno} cruzados con travesaño hondo: familias pegadas`, JSON.stringify(zs("BARRA")) === JSON.stringify(["-20..0", "0..20"]), JSON.stringify(zs("BARRA")));
+  ok(`3D ${relleno} cruzados con travesaño hondo: travesaño al ras adelante, dentro del marco`, JSON.stringify(zs("TRAVESANO")) === JSON.stringify(["-20..20"]), JSON.stringify(zs("TRAVESANO")));
+  ok(`3D ${relleno} cruzados con travesaño hondo: sin aviso de que sobresale`, aviso === "", aviso);
+}
+// pasantes con travesaño adelante: sigue en su capa y el relleno detrás (sin cambios)
+{
+  const c = calc({ ...base, relleno: "verticales", armado: "pasantes", perfil_relleno: "Tubo cuadrado 20×20×1,5" });
+  const { piezas: pz } = piezas3D(c.resultados[0], perfiles, { relleno: "verticales", pasantes: true });
+  const z1 = (k) => [...new Set(pz.filter((q) => q.capa === k).map((q) => P.red(q.z1, 3)))];
+  ok("3D pasantes: travesaño adelante y barrotes detrás (sin cambios)", JSON.stringify(z1("TRAVESANO")) === "[20]" && JSON.stringify(z1("BARRA")) === "[0]",
+    `${z1("TRAVESANO")} / ${z1("BARRA")}`);
+}
+
 console.log(`${bien} de ${bien + mal} OK`);
 process.exit(mal ? 1 : 0);

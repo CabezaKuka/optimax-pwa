@@ -105,13 +105,22 @@ export function piezas3D(R, perfiles, { espChapa = 1.5, pasantes = false, travAt
     else capas = [[...rel[0], "trav"], ...rel.slice(1)];
   }
   const fam = formas.map((f) => (f.capa === "MARCO" ? null : familia(f)));
-  const hondoCapa = capas.map((cs) => Math.max(0, ...formas.filter((f, i) => cs.includes(fam[i])).map(prof)));
+  // fondo de cada capa: el de todas sus piezas, y lo que corre la capa siguiente (26-nov, Max): sin el travesaño si
+  // va a tope con el relleno (no se pisan; antes un travesaño más hondo que el relleno separaba la 2.ª familia de
+  // rombos / cuadrícula cruzados de la 1.ª)
+  const hondoDe = (cs) => Math.max(0, ...formas.filter((f, i) => cs.includes(fam[i])).map(prof));
+  const hondoCapa = capas.map(hondoDe);
+  const pasoCapa = capas.map((cs) => (cs.length > 1 && cs.includes("trav") ? hondoDe(cs.filter((c) => c !== "trav")) : hondoDe(cs)));
   const z1Capa = {};
-  let acum = 0;
-  capas.forEach((cs, i) => { for (const c of cs) z1Capa[c] = frente - acum; acum += hondoCapa[i]; });
+  let acum = 0, fondo = 0;
+  capas.forEach((cs, i) => {
+    for (const c of cs) z1Capa[c] = frente - acum;
+    fondo = Math.max(fondo, acum + hondoCapa[i]);
+    acum += pasoCapa[i];
+  });
   let aviso = "";
-  if (hondoCapa.filter((h) => h > 0).length > 1 && acum > hondo + 0.05) {
-    aviso = `El relleno y los travesaños, uno detrás del otro, suman ${fmt(acum)} mm y ` +
+  if (hondoCapa.filter((h) => h > 0).length > 1 && fondo > hondo + 0.05) {
+    aviso = `El relleno y los travesaños, uno detrás del otro, suman ${fmt(fondo)} mm y ` +
       `${pmAng ? "detrás de la cara del ángulo hay" : "el marco tiene"} ${fmt(hondo)} mm: sobresalen atrás.`;
   }
   const piezas = [];
