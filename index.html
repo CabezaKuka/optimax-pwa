@@ -17,13 +17,23 @@
 <body>
   <header class="cabecera">
     <a href="#" class="logo-enlace" aria-label="optiMAX, inicio"><img class="logo" src="img/logo.png" alt="optiMAX" width="443" height="96"></a>
-    <button class="btn-pro" type="button" data-abre-pro>Comprar PRO</button>
+    <div class="cab-acc">
+      <button class="btn-instalar" type="button" id="btn-instalar" hidden>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M12 7v7M9 11l3 3 3-3"/></svg>Instalar</button>
+      <button class="btn-pro" type="button" data-abre-pro>Comprar PRO</button>
+    </div>
   </header>
 
-  <div class="aviso-ios" id="aviso-ios" hidden>
-    <p>Para tenerla siempre a mano y sin internet: tocá <b>Compartir</b> y después <b>Agregar a inicio</b>.</p>
-    <button type="button" class="cerrar" aria-label="Cerrar el aviso" id="cerrar-ios">×</button>
-  </div>
+  <!-- instalar la app (instalar.js): en el inicio hasta que la cierren con la ×; después queda el botón de la cabecera -->
+  <section class="instalar" id="instalar" aria-labelledby="instalar-tit" hidden>
+    <svg class="instalar-ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M12 7v7M9 11l3 3 3-3"/></svg>
+    <div class="instalar-txt">
+      <b id="instalar-tit">Instalá la app</b>
+      <span>Queda en el celular y anda sin internet.</span>
+    </div>
+    <button type="button" class="btn-inst" id="instalar-ok">Instalar</button>
+    <button type="button" class="cerrar" id="instalar-cerrar" aria-label="Cerrar el aviso de instalar">×</button>
+  </section>
 
   <div class="aviso-lic" id="aviso-lic" role="alert" hidden></div>
 
@@ -37,7 +47,6 @@
     <a href="https://optimax.lat/" rel="noopener">optimax.lat</a>
     <span>optiMAX para Windows: nesting, desarrollos de chapa y más.</span>
     <span class="pie-lic" id="pie-lic" hidden></span>
-    <button type="button" class="btn-instalar" id="btn-instalar" hidden>Instalar la app</button>
   </footer>
 
   <dialog class="hoja-pro" id="hoja-pro" aria-labelledby="pro-titulo">
@@ -113,6 +122,32 @@
         <p class="pro-ok" id="pro-ok" role="status" hidden></p>
         <button type="button" class="btn-prim" id="pro-listo" hidden>Listo</button>
       </details>
+    </form>
+  </dialog>
+
+  <!-- pasos para instalar donde el navegador no tiene el botón (iPhone; Facebook / Instagram) -->
+  <dialog class="hoja-pro" id="hoja-instalar" aria-labelledby="inst-tit">
+    <form method="dialog" class="hoja">
+      <button class="cerrar" value="cerrar" aria-label="Cerrar">×</button>
+      <h2 id="inst-tit">Instalar la app</h2>
+      <div id="inst-ios" hidden>
+        <ol class="inst-pasos">
+          <li>Tocá <b>Compartir</b> <svg class="inst-ico" viewBox="0 0 24 24" aria-label="(el cuadrado con la flecha para arriba)" role="img"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M6 11H5v10h14V11h-1"/></svg>, abajo o arriba de la pantalla.</li>
+          <li>Elegí <b>Agregar a inicio</b> (si no aparece, deslizá la lista hacia abajo).</li>
+          <li>Tocá <b>Agregar</b>. Queda el ícono de optiMAX Taller en el inicio del celular.</li>
+        </ol>
+      </div>
+      <div id="inst-app" hidden>
+        <p>Dentro de Facebook o Instagram no se puede instalar. Abrila en el navegador del celular:</p>
+        <a class="btn-prim" id="inst-chrome" href="#" hidden>Abrir en Chrome</a>
+        <ol class="inst-pasos">
+          <li>Tocá los tres puntos (<b>⋮</b> o <b>···</b>) de arriba a la derecha.</li>
+          <li>Elegí <b id="inst-nav">Abrir en el navegador</b>.</li>
+          <li>Ahí tocá <b>Instalar</b>.</li>
+        </ol>
+        <button type="button" class="btn-sec btn-chico" id="inst-copiar">Copiar el enlace</button>
+        <p class="nota" id="inst-copiado" role="status" hidden>Enlace copiado: pegalo en Chrome o Safari.</p>
+      </div>
     </form>
   </dialog>
 

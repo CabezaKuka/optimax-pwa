@@ -1,9 +1,9 @@
 // Service worker: guarda la app para que ande sin internet. Al cambiar cualquier archivo, subir VERSION
 // (si no, los que ya la tienen siguen viendo la vieja hasta que se borre la caché).
-const VERSION = "optimax-pwa-37";
+const VERSION = "optimax-pwa-38";
 const ARCHIVOS = [
   "./", "index.html", "app.css", "app.js", "vista.js", "manifest.webmanifest",
-  "modulos.js", "inicio.js", "iconos.js", "licencia.js", "licencia-config.js", "vendor/ed25519.js", "hoja-pro.js", "pago-config.js", "salida.js", "trabajos.js", "modulos/chapa.js", "modulos/barras.js", "barras/motor.js",
+  "modulos.js", "inicio.js", "instalar.js", "iconos.js", "licencia.js", "licencia-config.js", "vendor/ed25519.js", "hoja-pro.js", "pago-config.js", "salida.js", "trabajos.js", "modulos/chapa.js", "modulos/barras.js", "barras/motor.js",
   "modulos/guillotina.js", "guillotina/motor.js", "modulos/portones.js", "modulos/portones3d.js", "modulos/texturas3d.js", "modulos/visor3d.js", "modulos/chapa3d.js", "portones/motor.js", "barras/trabajador.js",
   "geo/base.js", "geo/index.js", "geo/medidas.js", "geo/arma3d.js",
   "geo/t_cil_cil.js", "geo/codo_sectores.js", "geo/tronco_cono.js", "geo/tronco_piramide.js",
@@ -14,6 +14,7 @@ const ARCHIVOS = [
   ...["t_cil_cil", "codo_sectores", "tronco_cono", "tronco_piramide", "t_rect_cil", "t_cil_rect", "codo_rect",
     "curva_directa_90", "curva_directa", "desvio_paralelo", "transicion_rect_red", "helicoide"]
     .map((id) => `img/fig/${id}.webp`),
+  ...["chapa", "portones", "barras", "guillotina"].map((id) => `img/inicio/${id}.webp`),
 ];
 
 self.addEventListener("install", (e) => {

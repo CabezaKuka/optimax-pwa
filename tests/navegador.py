@@ -75,8 +75,18 @@ def celular(b, base, cap):
     pg.wait_for_selector(".inicio")
     control(pg.locator(".mod").count() == 4, "inicio: 4 módulos (Escaleras oculta)")
     control(pg.locator("a.mod").count() == 4, "inicio: se abren Chapa, Portones, Barras y Guillotina")
-    control(pg.locator(".abrir").count() == 0 and pg.locator("a.mod .mod-ir").count() == 4,
-            "inicio: sin botón «Abrir», cada tarjeta con su flecha")
+    control(pg.locator(".abrir").count() == 0 and pg.locator("a.mod .mod-img img").count() == 4,
+            "inicio: sin botón «Abrir», cada tarjeta con su foto")
+    control(pg.evaluate("[...document.querySelectorAll('.mod-img img')].every((i) => i.complete && i.naturalWidth > 0)"),
+            "inicio: las 4 fotos cargan")
+    control([pg.locator(".mod").nth(k).get_attribute("href") for k in range(4)] ==
+            ["#chapa", "#portones", "#barras", "#guillotina"], "inicio: orden chapa, portones, barras, guillotina")
+    control(pg.locator(".mod-desc").count() == 4 and "Lista de corte" in pg.inner_text(".inicio"),
+            "inicio: cada tarjeta con su descripción")
+    caja = [pg.locator(".mod").nth(k).bounding_box() for k in range(4)]
+    control(abs(caja[0]["y"] - caja[1]["y"]) < 1 and caja[2]["y"] > caja[0]["y"] + 100,
+            "inicio: de a 2 en el celular")
+    control(pg.evaluate("document.documentElement.scrollWidth <= innerWidth"), "inicio: sin desborde a lo ancho")
     control("Escaleras" not in pg.inner_text(".inicio"), "inicio: Escaleras no aparece")
     control(pg.is_hidden("#migas"), "inicio: sin «← Inicio»")
     if cap:
@@ -607,6 +617,127 @@ def portones_demo(pg, base, cap):
     pg.wait_for_selector(".inicio")
 
 
+ANDROID_FB = ("Mozilla/5.0 (Linux; Android 13; SM-A135M) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 "
+              "Mobile Safari/537.36 [FB_IAB/FB4A;FBAV/440.0.0.0;]")
+IPHONE = ("Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 "
+          "Mobile/15E148 Safari/604.1")
+IPHONE_IG = IPHONE.replace("Safari/604.1", "Instagram 320.0.0.0 (iPhone14,5; iOS 17_4)")
+AVISO_CHROME = """() => { const e = new Event("beforeinstallprompt", { cancelable: true }); window._prompts = 0;
+  e.prompt = () => { window._prompts++; }; e.userChoice = Promise.resolve({ outcome: "dismissed" }); dispatchEvent(e); }"""
+
+
+def instalar(b, base, cap):
+    """Instalar (instalar.js): Chrome con beforeinstallprompt, iPhone, Facebook / Instagram, ya instalada."""
+    def abrir(**kw):
+        ctx = b.new_context(viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True, **kw)
+        pg = ctx.new_page()
+        errs = []
+        pg.on("pageerror", lambda e: errs.append(str(e)))
+        return ctx, pg, errs
+
+    # Chrome (Android): sin aviso del navegador no se ve nada; con el aviso, tarjeta en el inicio y no en la cabecera
+    ctx, pg, errs = abrir()
+    pg.goto(base)
+    pg.wait_for_selector(".inicio")
+    control(pg.is_hidden("#instalar") and pg.is_hidden("#btn-instalar"), "instalar: sin aviso de Chrome, no se ofrece")
+    pg.evaluate(AVISO_CHROME)
+    control(pg.is_visible("#instalar") and pg.is_hidden("#btn-instalar"), "instalar: aviso de Chrome → tarjeta en el inicio")
+    caja_t, caja_m = pg.locator("#instalar").bounding_box(), pg.locator(".mod").first.bounding_box()
+    control(caja_t["y"] < caja_m["y"], "instalar: la tarjeta va arriba de los módulos")
+    if cap:
+        pg.screenshot(path=f"{cap}/i_tarjeta.png")
+    pg.click("#instalar-ok")
+    control(pg.evaluate("window._prompts") == 1, "instalar: «Instalar» abre el de Chrome")
+    pg.evaluate(AVISO_CHROME)
+    pg.click("a.mod[href='#barras']")
+    pg.wait_for_selector("#piezas")
+    control(pg.is_hidden("#instalar") and pg.is_visible("#btn-instalar"), "instalar: en un módulo, el botón de la cabecera")
+    pg.click("#migas .volver")
+    pg.wait_for_selector(".inicio")
+    pg.click("#instalar-cerrar")
+    control(pg.is_hidden("#instalar") and pg.is_visible("#btn-instalar"), "instalar: × → queda el botón al lado de Comprar PRO")
+    cab = pg.locator(".cabecera").bounding_box()
+    bi, bp = pg.locator("#btn-instalar").bounding_box(), pg.locator(".btn-pro").bounding_box()
+    control(bi["x"] + bi["width"] <= bp["x"] and abs(bi["y"] - bp["y"]) < 4 and bp["x"] + bp["width"] <= cab["width"],
+            "instalar: botón al lado de Comprar PRO, sin desbordar")
+    if cap:
+        pg.screenshot(path=f"{cap}/i_cabecera.png")
+    pg.click("#btn-instalar")
+    control(pg.evaluate("window._prompts") == 1, "instalar: el de la cabecera también instala")
+    pg.reload()
+    pg.wait_for_selector(".inicio")
+    pg.evaluate(AVISO_CHROME)
+    control(pg.is_hidden("#instalar") and pg.is_visible("#btn-instalar"), "instalar: cerrada, no vuelve al recargar")
+    pg.evaluate("dispatchEvent(new Event('appinstalled'))")
+    control(pg.is_hidden("#instalar") and pg.is_hidden("#btn-instalar"), "instalar: instalada → se va")
+    control(not errs, f"instalar Chrome: errores de JS {errs}")
+    ctx.close()
+
+    # celular angosto (360): la cabecera con los dos botones entra
+    ctx = b.new_context(viewport={"width": 360, "height": 740}, is_mobile=True, has_touch=True)
+    pg = ctx.new_page()
+    pg.goto(base + "#barras")
+    pg.wait_for_selector("#piezas")
+    pg.evaluate(AVISO_CHROME)
+    bp = pg.locator(".btn-pro").bounding_box()
+    control(pg.is_visible("#btn-instalar") and bp["x"] + bp["width"] <= 360 and
+            pg.evaluate("document.documentElement.scrollWidth <= innerWidth"), "instalar: en 360 px la cabecera entra")
+    ctx.close()
+
+    # iPhone (Safari): tarjeta de entrada; los pasos de Compartir
+    ctx, pg, errs = abrir(user_agent=IPHONE)
+    pg.goto(base)
+    pg.wait_for_selector(".inicio")
+    control(pg.is_visible("#instalar"), "instalar iPhone: tarjeta sin aviso del navegador")
+    pg.click("#instalar-ok")
+    pg.wait_for_selector("#hoja-instalar[open]")
+    control(pg.is_visible("#inst-ios") and pg.is_hidden("#inst-app") and "Agregar a inicio" in pg.inner_text("#inst-ios"),
+            "instalar iPhone: pasos de Compartir → Agregar a inicio")
+    if cap:
+        pg.screenshot(path=f"{cap}/i_iphone.png")
+    pg.keyboard.press("Escape")
+    control(not errs, f"instalar iPhone: errores de JS {errs}")
+    ctx.close()
+
+    # Facebook en Android: abrir en Chrome (intent) + pasos + copiar
+    ctx, pg, errs = abrir(user_agent=ANDROID_FB, permissions=["clipboard-read", "clipboard-write"])
+    pg.goto(base + "#portones")
+    pg.wait_for_selector("#p-lista li")
+    control(pg.is_visible("#btn-instalar") and pg.is_hidden("#instalar"), "instalar Facebook: en un módulo, botón de la cabecera")
+    pg.click("#btn-instalar")
+    pg.wait_for_selector("#hoja-instalar[open]")
+    href = pg.get_attribute("#inst-chrome", "href") or ""
+    control(pg.is_visible("#inst-app") and pg.is_visible("#inst-chrome") and
+            href.startswith("intent://localhost:") and "package=com.android.chrome" in href and "#portones" in href,
+            f"instalar Facebook: «Abrir en Chrome» ({href[:60]}…)")
+    control("Chrome" in pg.inner_text("#inst-nav"), "instalar Facebook: pasos con «Abrir en el navegador (Chrome)»")
+    pg.click("#inst-copiar")
+    pg.wait_for_selector("#inst-copiado", state="visible")
+    control(pg.evaluate("navigator.clipboard.readText()") == base, "instalar Facebook: copia el enlace de la app")
+    if cap:
+        pg.screenshot(path=f"{cap}/i_facebook.png")
+    control(not errs, f"instalar Facebook: errores de JS {errs}")
+    ctx.close()
+
+    # Instagram en iPhone: sin «Abrir en Chrome», pasos a Safari
+    ctx, pg, errs = abrir(user_agent=IPHONE_IG)
+    pg.goto(base)
+    pg.wait_for_selector(".inicio")
+    pg.click("#instalar-ok")
+    pg.wait_for_selector("#hoja-instalar[open]")
+    control(pg.is_visible("#inst-app") and pg.is_hidden("#inst-chrome") and "Safari" in pg.inner_text("#inst-nav"),
+            "instalar Instagram (iPhone): pasos para abrir en Safari, sin el botón de Chrome")
+    ctx.close()
+
+    # ya instalada (pantalla completa): nada, aunque sea iPhone
+    ctx, pg, errs = abrir(user_agent=IPHONE)
+    pg.add_init_script("Object.defineProperty(navigator, 'standalone', { get: () => true })")
+    pg.goto(base)
+    pg.wait_for_selector(".inicio")
+    control(pg.is_hidden("#instalar") and pg.is_hidden("#btn-instalar"), "instalar: ya instalada, no se ofrece")
+    ctx.close()
+
+
 def pc(b, base, cap):
     ctx = b.new_context(viewport={"width": 1366, "height": 820})
     pg = ctx.new_page()
@@ -620,6 +751,8 @@ def pc(b, base, cap):
     pg.wait_for_selector(".inicio")
     if cap:
         pg.screenshot(path=f"{cap}/p_inicio.png")
+    ys = {round(pg.locator(".mod").nth(k).bounding_box()["y"]) for k in range(4)}
+    control(len(ys) == 1, "PC: inicio con las 4 tarjetas en una fila")
     control(not errs, f"PC: errores de JS {errs}")
     ctx.close()
     # precio de la PRO (25-nov): 250 Bs en Bolivia, 20 USDT afuera; nombre «optiMAX Taller»
@@ -1004,6 +1137,7 @@ def main():
         with sync_playwright() as p:
             b = p.chromium.launch(executable_path=a.chrome, args=["--no-sandbox"])
             celular(b, base, a.capturas)
+            instalar(b, base, a.capturas)
             pc(b, base, a.capturas)
             if os.path.isdir(os.path.join(RAIZ, "pro")):
                 pro(b, base, a.capturas)

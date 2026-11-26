@@ -4,6 +4,7 @@ import { moduloPorId } from "./modulos.js";
 import * as inicio from "./inicio.js";
 import { armarHojaPro, ponerContexto, abrirActivar, seguirCompra } from "./hoja-pro.js";
 import { esPro, DESARROLLO, iniciar, licencia, avisoLicencia, revalidar } from "./licencia.js";
+import { armarInstalar, ponerInicio } from "./instalar.js";
 
 const $ = (s) => document.querySelector(s);
 const pantalla = $("#pantalla");
@@ -31,6 +32,7 @@ async function ir() {
   ponerContexto();
   pantalla.innerHTML = "";
   window.scrollTo(0, 0);
+  ponerInicio(destino === "inicio");
   if (destino === "inicio") {
     actual = { id: "inicio", mod: inicio };
     document.title = "optiMAX · Herramientas para el taller";
@@ -49,32 +51,8 @@ async function ir() {
   await mod.montar(pantalla);
 }
 
-// ------------------------------------------------------------------ instalar
-function armarInstalacion() {
-  let memoria = {};
-  try { memoria = JSON.parse(localStorage.getItem("optimax-pwa-app")) || {}; } catch { /* sin almacenamiento */ }
-  const esIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) ||
-    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-  const instalada = matchMedia("(display-mode: standalone)").matches || navigator.standalone;
-  if (esIOS && !instalada && !memoria.iosVisto) $("#aviso-ios").hidden = false;
-  $("#cerrar-ios").addEventListener("click", () => {
-    $("#aviso-ios").hidden = true;
-    memoria.iosVisto = true;
-    try { localStorage.setItem("optimax-pwa-app", JSON.stringify(memoria)); } catch { /* sin almacenamiento */ }
-  });
-  let aviso = null;
-  addEventListener("beforeinstallprompt", (e) => {
-    e.preventDefault();
-    aviso = e;
-    $("#btn-instalar").hidden = false;
-  });
-  $("#btn-instalar").addEventListener("click", async () => {
-    if (!aviso) return;
-    aviso.prompt();
-    await aviso.userChoice;
-    aviso = null;
-    $("#btn-instalar").hidden = true;
-  });
+// ------------------------------------------------------------------ service worker (instalar: instalar.js)
+function armarServiceWorker() {
   if ("serviceWorker" in navigator && location.protocol !== "file:") {
     navigator.serviceWorker.register("sw.js").catch(() => { /* sin caché: igual anda con internet */ });
   }
@@ -107,6 +85,7 @@ if (esPro()) {
 }
 armarHojaPro();
 if (!esPro()) seguirCompra();                   // compra en curso: la hoja sigue esperando la confirmación del pago
-armarInstalacion();
+armarInstalar();
+armarServiceWorker();
 addEventListener("hashchange", ir);
 ir();
