@@ -1,14 +1,11 @@
 // Modelos de la galería (27-nov, Max): cada modelo se calcula sin errores en cada tipo de su pestaña (portones: batiente
 // 1 y 2 hojas, corredizo; reja: reja de ventana), con el diseño esperado, y aplicar un modelo conserva medidas y perfiles.
-// Los portones se calculan con el código PRO (pro/, el repo privado enlazado); sin él, solo la reja de ventana.
+// Los tipos de portón están en el motor público (27-nov): se prueban todos, con o sin pro/.
 //   node --preserve-symlinks --preserve-symlinks-main tests/modelos.mjs
 import * as P from "../portones/motor.js";
 import * as M from "../portones/modelos.js";
 import { piezas3D } from "../modulos/portones3d.js";
 
-let hayPro = false;
-try { P.registrarTipos((await import("../pro/portones/tipos.js")).TIPOS_PORTON); hayPro = true; }
-catch { console.log("(sin pro/: solo la reja de ventana)"); }
 let bien = 0, mal = 0;
 const ok = (que, cond, extra = "") => { if (cond) bien++; else { mal++; console.log(`MAL ${que} ${extra}`); } };
 const perfiles = P.perfilesDe([
@@ -28,7 +25,7 @@ ok("normalizarItem guarda el modelo", P.normalizarItem({ modelo: "chapa" }).mode
 
 for (const m of M.MODELOS) {
   for (const para of m.para) {
-    const tipos = para === "porton" ? (hayPro ? P.PORTONES : []) : ["reja_ventana"];
+    const tipos = para === "porton" ? P.PORTONES : ["reja_ventana"];
     for (const tipo of tipos) {
       const [w, h] = P.MEDIDAS_MUESTRA[tipo];
       const it = M.aplicarModelo({ ...base, tipo, ancho: w, alto: h }, m.id, para);

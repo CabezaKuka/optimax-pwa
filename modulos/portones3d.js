@@ -187,7 +187,7 @@ function eje(pts) {
  * perfiles = {nombre: Perfil}; opts.piso = true para dibujar el piso (portones; la reja de ventana va en la pared).
  */
 export async function abrir3D(R, perfiles, { espChapa = 1.5, piso = false, pasantes = false, travAtras = false,
-  relleno = "", cruce = "cruzadas", chapaTrav = "atras", tipo = "", sobrepuesta = false } = {}) {
+  relleno = "", cruce = "cruzadas", chapaTrav = "atras", tipo = "", sobrepuesta = false, demo = false } = {}) {
   let zAdelante = 20, zAtras = -20;
   const reja = tipo === "reja_ventana";
   const entorno = piso || reja ? {
@@ -238,7 +238,7 @@ export async function abrir3D(R, perfiles, { espChapa = 1.5, piso = false, pasan
     },
   } : null;
   const pisoTextura = (T) => ({ map: texturaAdoquin(T), tile: TILE_ADOQUIN, nombre: "adoquin", enMm });
-  await abrirVisor({ piso, pisoTextura, margen: 200, entorno, clase: "of-herreria", armar: (T, grupo, basura) => {
+  await abrirVisor({ piso, pisoTextura, margen: 200, entorno, clase: "of-herreria", marca: demo ? "DEMO" : "", armar: (T, grupo, basura) => {
     const mats = {}, lineas = new T.LineBasicMaterial({ color: BORDE });
     basura.push(lineas);
     const material = (c) => {

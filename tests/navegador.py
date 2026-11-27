@@ -60,6 +60,21 @@ def abrir_hoja(pg):
         pg.wait_for_timeout(400)
 
 
+def con_candado(pg, que, si=True):
+    """DEMO (27-nov): fuera de la reja de ventana de 1500 × 1000 se dibuja todo, pero la lista de corte, las barras, el
+    peso, la luz y las cotas no están en la página (tarjeta con candado y marca de agua «DEMO»); adentro, completa."""
+    if si:
+        control(pg.is_visible("#p-candado") and pg.is_hidden("#p-fabricar") and pg.locator("#p-lista li").count() == 0 and
+                pg.inner_html("#p-barras") == "" and pg.inner_html("#p-datos") == "" and pg.locator("#p-resumen .dato").count() == 1 and
+                pg.inner_text("#p-luz") == "" and pg.is_visible("#p-demo") and pg.locator("#p-dibujo .p-marca-demo").count() == 1 and
+                pg.locator("#p-dibujo .p-cota").count() == 0 and pg.is_visible("#p-cotas-pro"),
+                f"{que}: candado (sin lista, barras, kg, luz ni cotas; marca «DEMO»)")
+    else:
+        control(pg.is_hidden("#p-candado") and pg.locator("#p-lista li").count() > 0 and pg.inner_html("#p-barras") != "" and
+                pg.locator("#p-resumen .dato").count() == 3 and pg.is_hidden("#p-demo") and
+                pg.locator("#p-dibujo .p-marca-demo").count() == 0 and pg.is_hidden("#p-cotas-pro"), f"{que}: completa, sin candado")
+
+
 def galeria_libre(pg):
     """Rejas y portones (27-nov): sin modelo elegido se abre la galería de modelos. «Reja de ventana» + «Diseño libre»
     deja el arranque de siempre (la reja de ventana de muestra); si no hay galería, no hace nada."""
@@ -405,7 +420,8 @@ def portones_demo(pg, base, cap):
     control(pg.locator("#p-lista li").count() == 4, "portones: la reja de muestra con 4 marcas (marco ×2, travesaño, barrote)")
     control(pg.inner_text("#p-resumen .dato-v >> nth=0") == "23", "portones: 23 piezas")
     control(pg.locator("#p-dibujo polygon").count() >= 20, "portones: elevación dibujada")
-    control(pg.locator(".p-tarjeta[data-clave=tipo] .tag").count() == 3, "portones DEMO: los 3 portones con PRO")
+    control(pg.locator(".p-tarjeta[data-clave=tipo] .tag").count() == 0, "portones DEMO: los portones sin «PRO» (se dibujan)")
+    con_candado(pg, "reja DEMO 1200 × 1000", False)
     if cap:
         pg.screenshot(path=f"{cap}/c_portones.png", full_page=True)
     # tocar un renglón marca la pieza en el dibujo
@@ -414,18 +430,68 @@ def portones_demo(pg, base, cap):
             "portones: tocar un renglón resalta esa marca")
     pg.click("#p-dibujo polygon[data-m=A] >> nth=0", force=True)
     control(pg.get_attribute("#p-lista li.sel", "data-m") == "A", "portones: tocar el dibujo marca el renglón")
-    # portón en la DEMO → hoja de compra
+    # portón en la DEMO (27-nov): se dibuja y se ve en 3D; la lista, las barras y las cotas con candado
     pg.click(".p-tarjeta[data-v=batiente_2]")
+    pg.wait_for_timeout(700)
+    control(pg.locator("#hoja-pro[open]").count() == 0 and pg.locator("#p-dibujo polygon").count() > 20,
+            "portones DEMO: el portón de 2 hojas se dibuja sin pedir la PRO")
+    con_candado(pg, "portón DEMO")
+    texto = pg.inner_text("#p-resultado")
+    control("Lista de corte" in pg.inner_text("#p-candado") and "barras" not in pg.inner_text("#p-resumen") and "kg" not in texto,
+            "portón DEMO: sin barras ni kg a la vista")
+    if cap:
+        pg.screenshot(path=f"{cap}/c_porton_demo.png", full_page=True)
+    pg.click("label:has(#p-cotas)")
     pg.wait_for_selector("#hoja-pro[open]")
-    control("portones" in pg.inner_text("#pro-motivo"), "portones DEMO: portón → hoja de compra")
+    control("portones" in pg.inner_text("#pro-motivo") and not pg.is_checked("#p-cotas"), "portón DEMO: «Cotas» → hoja de compra")
     pg.keyboard.press("Escape")
-    # tope de la DEMO
-    pg.fill("#p-ancho", "2000")
-    pg.wait_for_timeout(500)
-    control(pg.is_visible("#p-demo") and "1.500" in pg.inner_text("#p-demo"), "portones DEMO: más de 1500 avisa")
+    pg.click("#p-candado .btn-prim")
+    pg.wait_for_selector("#hoja-pro[open]")
+    control("portones" in pg.inner_text("#pro-motivo"), "portón DEMO: «Hacelo con la PRO» del candado → hoja de compra")
+    pg.keyboard.press("Escape")
+    pg.click("#p-3d")
+    pg.wait_for_selector(".p-3d[data-piezas]", timeout=15000)
+    control(int(pg.get_attribute(".p-3d", "data-piezas")) > 0 and pg.is_visible(".p-3d .p-3d-marca") and
+            pg.locator(".p-3d .error-txt").count() == 0, "portón DEMO: 3D con la marca «DEMO»")
+    if cap:
+        pg.wait_for_timeout(600)
+        pg.screenshot(path=f"{cap}/c_porton_demo_3d.png")
+    pg.click(".p-3d .p-c-cerrar")
+    pg.fill("#p-ancho", "6000")
     pg.locator("#p-ancho").blur()
-    pg.wait_for_timeout(100)
-    control(pg.input_value("#p-ancho") == "1500", "portones DEMO: el ancho vuelve al tope")
+    pg.fill("#p-alto", "2500")
+    pg.locator("#p-alto").blur()
+    pg.wait_for_timeout(700)
+    control(pg.input_value("#p-ancho") == "6000" and pg.is_hidden("#p-error"), "portón DEMO: sin tope de medidas (6000 × 2500)")
+    pg.click("#p-3d")
+    pg.wait_for_selector(".p-3d[data-piezas]", timeout=15000)
+    control(pg.locator(".p-3d .error-txt").count() == 0, "portón DEMO: 3D de 6000 × 2500")
+    pg.click(".p-3d .p-c-cerrar")
+    pg.click(".p-tarjeta[data-v=reja_ventana]")
+    for k, v in (("ancho", "1200"), ("alto", "1000")):
+        pg.fill(f"#p-{k}", v)
+        pg.locator(f"#p-{k}").blur()
+    pg.wait_for_timeout(700)
+    con_candado(pg, "de vuelta en la reja 1200 × 1000", False)
+    # la reja de ventana: completa hasta 1500 × 1000, más grande con candado (sin tope de medidas)
+    pg.fill("#p-ancho", "2000")
+    pg.locator("#p-ancho").blur()
+    pg.wait_for_timeout(700)
+    control(pg.input_value("#p-ancho") == "2000", "reja DEMO: sin tope, queda en 2000")
+    con_candado(pg, "reja DEMO 2000 × 1000")
+    control("1.500 × 1.000" in pg.inner_text("#p-candado"), "reja DEMO: el candado dice que va completa hasta 1500 × 1000")
+    pg.fill("#p-ancho", "1000")
+    pg.locator("#p-ancho").blur()
+    pg.fill("#p-alto", "1500")
+    pg.locator("#p-alto").blur()
+    pg.wait_for_timeout(700)
+    con_candado(pg, "reja DEMO 1000 × 1500 (girada)", False)
+    pg.fill("#p-ancho", "1500")
+    pg.locator("#p-ancho").blur()
+    pg.fill("#p-alto", "1000")
+    pg.locator("#p-alto").blur()
+    pg.wait_for_timeout(700)
+    con_candado(pg, "reja DEMO 1500 × 1000 (el límite)", False)
     # reja de ventana: hueco + sobresale / holgura (25-nov, Max)
     control(pg.inner_text("label[for=p-ancho]") == "Ancho del hueco" and pg.is_visible(".campo[data-k=sob_lat]") and
             pg.is_visible(".campo[data-k=holg_hueco]") and "adentro del hueco" in pg.inner_text("#p-reja-medida"),
@@ -434,7 +500,12 @@ def portones_demo(pg, base, cap):
     pg.wait_for_timeout(500)
     pg.locator("#p-sob_lat").blur()
     pg.wait_for_timeout(100)
-    control(pg.input_value("#p-sob_lat") == "0" and pg.is_visible("#p-demo"), "reja DEMO: con el hueco al tope no puede sobresalir")
+    control(pg.input_value("#p-sob_lat") == "100", "reja DEMO: con el hueco al límite puede sobresalir")
+    con_candado(pg, "reja DEMO 1500 + 2 × 100 sobresale")
+    pg.fill("#p-sob_lat", "0")
+    pg.locator("#p-sob_lat").blur()
+    pg.wait_for_timeout(600)
+    con_candado(pg, "reja DEMO sin sobresalir, otra vez 1500", False)
     pg.fill("#p-ancho", "1200")
     pg.locator("#p-ancho").blur()
     pg.fill("#p-alto", "900")
@@ -822,7 +893,11 @@ def portones_arriba(b, base):
             "portones celular: el aviso de la DEMO y los errores van arriba, con el dibujo")
     pg.fill("#p-ancho", "2000")
     pg.wait_for_timeout(500)
-    control(pg.is_visible("#p-demo") and y("#p-demo") < y(".p-elev") < y("#p-tipos"), "portones celular: el aviso del tope de la DEMO, arriba")
+    control(pg.is_visible("#p-demo") and y("#p-demo") < y(".p-elev") < y("#p-tipos"), "portones celular: el aviso de la DEMO (candado), arriba")
+    pg.click("#p-hoja-nav [data-sec=lista]")
+    pg.wait_for_timeout(400)
+    control(pg.is_visible("#p-candado") and pg.locator("#p-lista li").count() == 0, "portones celular: «Lista» con candado")
+    abrir_hoja(pg)
     pg.fill("#p-ancho", "800")
     pg.locator("#p-ancho").blur()
     pg.wait_for_timeout(500)
@@ -835,8 +910,9 @@ def portones_arriba(b, base):
     control(pg.evaluate("!!document.querySelector('#p-vista-arriba .p-elev')") and pg.locator("#p-vista-arriba").count() == 1,
             "portones: de vuelta en el celular, arriba otra vez")
     abrir_hoja(pg)
-    pg.click(".p-tarjeta[data-v=batiente_2]")             # DEMO: pide la PRO
-    pg.keyboard.press("Escape")
+    pg.click(".p-tarjeta[data-v=batiente_2]")             # DEMO: se dibuja con candado
+    pg.wait_for_timeout(500)
+    control(pg.locator("#hoja-pro[open]").count() == 0 and pg.is_visible("#p-dibujo .p-marca-demo"), "portones celular DEMO: portón con marca «DEMO»")
     control(not errs, f"portones arriba: errores de JS {errs}")
     ctx.close()
     # Brave con WebGL bloqueado
@@ -992,7 +1068,8 @@ def pc(b, base, cap):
         galeria_libre(pg)
         pg.wait_for_selector("#p-lista li")
         abrir_hoja(pg)
-        pg.click(".p-tarjeta[data-v=batiente_2]")
+        pg.click(".p-tarjeta[data-v=batiente_2]")          # DEMO (27-nov): se dibuja; la compra, desde el aviso
+        pg.click("#p-demo [data-abre-pro]")
         pg.wait_for_selector("#hoja-pro[open]")
         href = pg.get_attribute("#btn-whatsapp", "href") or ""
         from urllib.parse import unquote
@@ -1392,7 +1469,7 @@ def imagenes_ok(pg):
 
 
 def galeria_demo(b, base, cap=None):
-    """Modelos de reja y portón (27-nov) en la DEMO: galería al entrar, portones con «PRO» y compra, la reja se usa."""
+    """Modelos de reja y portón (27-nov) en la DEMO: galería al entrar; todos se usan (los portones con la lista con candado)."""
     ctx = b.new_context(viewport={"width": 390, "height": 844}, device_scale_factor=2, is_mobile=True, has_touch=True)
     pg = ctx.new_page()
     errs = []
@@ -1405,8 +1482,8 @@ def galeria_demo(b, base, cap=None):
     control(pg.is_checked(".p-gal-pest input[value=porton]") and pg.is_visible("#p-gal-ley") and
             "batiente de 1 o 2 hojas" in pg.inner_text("#p-gal-ley") and "corredizo" in pg.inner_text("#p-gal-ley"),
             "galería: arranca en Portones con la leyenda de los tipos")
-    control(pg.locator(".p-modelo").count() == 13 and pg.locator(".p-modelo .tag").count() == 12 and
-            pg.locator(".p-modelo").first.get_attribute("data-modelo") == "libre", "galería DEMO: diseño libre + 12 portones con «PRO»")
+    control(pg.locator(".p-modelo").count() == 13 and pg.locator(".p-modelo .tag").count() == 0 and
+            pg.locator(".p-modelo").first.get_attribute("data-modelo") == "libre", "galería DEMO: diseño libre + 12 portones, sin «PRO»")
     control(pg.is_hidden("#p-gal-volver"), "galería: la primera vez, sin «Volver»")
     control(imagenes_ok(pg), "galería: las imágenes de los portones existen")
     if cap:
@@ -1418,18 +1495,20 @@ def galeria_demo(b, base, cap=None):
     filas = pg.inner_text(".p-det-filas")
     control("Doble al centro" in filas and "200 mm" in filas and "6" in filas, f"detalle: qué trae ({filas!r})")
     control("corredizo" in pg.inner_text("#p-gal-det .nota"), "detalle: aclara que sirve para 1 o 2 hojas y corredizo")
-    control(pg.locator(".p-det-girar").count() == 0 and pg.locator("[data-acc=usar]").count() == 0 and
-            pg.is_visible(".p-det-pro"), "detalle DEMO portón: sin 3D ni «Usar», con la compra")
+    control(pg.is_visible(".p-det-girar") and pg.is_visible("[data-acc=usar]") and pg.locator(".p-det-pro").count() == 0,
+            "detalle DEMO portón: «Girar en 3D» y «Usar», como en la PRO")
     if cap:
         pg.screenshot(path=f"{cap}/m_detalle_demo.png", full_page=True)
-    pg.click(".p-det-pro")
-    pg.wait_for_selector("#hoja-pro[open]")
-    control("portones" in pg.inner_text("#pro-motivo"), "detalle DEMO: «Hacelo con la PRO» → hoja de compra")
-    pg.keyboard.press("Escape")
-    pg.click("[data-acc=reja]")
+    pg.click(".p-det-girar")
+    pg.wait_for_selector(".p-3d[data-piezas]", timeout=15000)
+    control(int(pg.get_attribute(".p-3d", "data-piezas")) > 0 and pg.get_attribute(".p-3d", "data-piso") == "adoquin" and
+            pg.is_visible(".p-3d .p-3d-marca"), "detalle DEMO portón: 3D con adoquín y la marca «DEMO»")
+    pg.click(".p-3d .p-c-cerrar")
+    pg.click("[data-acc=volver] >> nth=0")
+    pg.click(".p-gal-pest label:has-text('Reja de ventana')")
     control(pg.is_checked(".p-gal-pest input[value=reja]") and pg.is_hidden("#p-gal-ley") and pg.is_visible("#p-gal-lista") and
             pg.locator(".p-modelo").count() == 9 and pg.locator(".p-modelo .tag").count() == 0,
-            "galería: «Ver los modelos de reja» → 8 modelos de reja + diseño libre, sin «PRO»")
+            "galería: pestaña reja → 8 modelos de reja + diseño libre, sin «PRO»")
     control(imagenes_ok(pg), "galería: las imágenes de la reja existen")
     pg.click("[data-modelo=diagonales_1]")
     control(pg.is_visible(".p-det-girar") and pg.is_visible("[data-acc=usar]"), "detalle DEMO reja: «Girar en 3D» y «Usar»")
@@ -1469,15 +1548,33 @@ def galeria_demo(b, base, cap=None):
     pg.reload()
     pg.wait_for_selector("#p-dibujo svg")
     control(pg.is_hidden("#p-galeria") and pg.is_visible("#p-modelo-barra"), "recargar: con modelo elegido va directo al diseño")
-    # diseño libre desde la pestaña de portones en la DEMO: queda la reja
+    # diseño libre desde la pestaña de portones en la DEMO: el portón de muestra, con la lista con candado
     pg.evaluate("localStorage.removeItem('optimax-portones')")
     pg.reload()
     pg.wait_for_selector("#p-galeria:not([hidden])")
     pg.click("[data-modelo=libre]")
     pg.wait_for_selector("#p-galeria", state="hidden")
+    pg.wait_for_selector("#p-dibujo svg")
+    pg.wait_for_timeout(500)
     it = item_portones(pg)
-    control(it["modelo"] == "libre" and it["tipo"] == "reja_ventana" and "Diseño libre" in pg.inner_text("#p-modelo-barra"),
-            "diseño libre DEMO: la reja de siempre, barra «Diseño libre»")
+    control(it["modelo"] == "libre" and it["tipo"] == "batiente_2" and it["ancho"] == 3000 and "Diseño libre" in pg.inner_text("#p-modelo-barra"),
+            f"diseño libre DEMO desde Portones: el portón de 2 hojas de 3000 × 2000 ({it['tipo']}, {it['ancho']})")
+    con_candado(pg, "diseño libre DEMO portón")
+    # un modelo de portón en la DEMO: se usa y queda con candado
+    pg.click("#p-modelo-barra")
+    pg.wait_for_selector("#p-galeria:not([hidden])")
+    pg.click("[data-modelo=chapa]")
+    pg.click("[data-acc=usar]")
+    pg.wait_for_selector("#p-galeria", state="hidden")
+    pg.wait_for_timeout(500)
+    it = item_portones(pg)
+    control(it["modelo"] == "chapa" and it["relleno"] == "chapa" and it["tipo"] == "batiente_2", "usar DEMO: chapa ciega en el portón")
+    con_candado(pg, "modelo chapa ciega DEMO")
+    if cap:
+        pg.screenshot(path=f"{cap}/m_porton_demo.png")
+        pg.click("#p-hoja-nav [data-sec=lista]")
+        pg.wait_for_timeout(600)
+        pg.screenshot(path=f"{cap}/m_candado_demo.png")
     control(not errs, f"galería DEMO: errores de JS {errs}")
     ctx.close()
 

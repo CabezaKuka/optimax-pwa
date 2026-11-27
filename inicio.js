@@ -29,7 +29,7 @@ export function montar(cont) {
       <p>Plantillas de chapa, listas de corte y portones en 3D. Medís, cargás y sale.</p>
     </figure>
     ${pro ? "" : `<button type="button" class="ini-pro" data-abre-pro="">
-      <span class="ini-pro-txt"><b>Con la PRO:</b> las 12 figuras, todos los portones, PDF a escala, costos y trabajos guardados.</span>
+      <span class="ini-pro-txt"><b>Con la PRO:</b> las 12 figuras, la lista de corte de todos los portones, PDF a escala, costos y trabajos guardados.</span>
       <span class="ini-precio"><b>${PRECIO}</b>pago único</span>
     </button>`}
     <div class="ini-tit"><h1>Módulos</h1><span>${mods.length}</span></div>

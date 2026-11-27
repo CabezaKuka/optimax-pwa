@@ -19,9 +19,10 @@ export const visorAbierto = () => !!abierta;
  *   margen: mm de aire alrededor de lo dibujado para el encuadre (portones 200; chapa, una parte de la pieza).
  *   zArriba: las piezas vienen con z hacia arriba (chapa); se giran para que three.js (y arriba) las vea paradas.
  *   pisoTextura(T) → { map, tile: [ancho, hondo] mm, nombre, enMm }: dibujo del piso (portones: adoquín, 26-nov).
+ *   marca: texto de marca de agua sobre la vista (portones en la DEMO: «DEMO», 27-nov); no tapa los toques.
  */
 export async function abrirVisor({ armar, piso = false, margen = 200, zArriba = false, fondo = "#eef1f4", entorno = null,
-  clase = "", pisoTextura = null }) {
+  clase = "", pisoTextura = null, marca = "" }) {
   if (abierta) return;
   const capa = document.createElement("div");
   capa.className = `p-completa p-3d${clase ? ` ${clase}` : ""}`;
@@ -29,6 +30,7 @@ export async function abrirVisor({ armar, piso = false, margen = 200, zArriba = 
       <button type="button" class="p-3d-frente">Frente</button><button type="button" class="p-3d-girar">Girar</button>
       <button type="button" class="p-c-cerrar">Cerrar</button></div>
     <div class="p-3d-lienzo"><p class="nota p-3d-cargando">Cargando la vista 3D…</p></div>
+    ${marca ? `<p class="p-3d-marca" aria-hidden="true">${marca}</p>` : ""}
     <p class="p-3d-aviso" hidden></p>
     <p class="p-3d-ayuda">Un dedo gira · dos dedos acercan y mueven</p>`;
   document.body.append(capa);

@@ -1,6 +1,8 @@
 // Módulo Rejas y portones (herrería): elevación con marcas, lista de corte de cada perfil, barras a comprar, peso,
 // soldadura y pintura. Port de ui_portones.py del escritorio, con un solo trabajo (con cantidad).
-// DEMO: solo reja de ventana hasta 1500 × 1000 (en cualquier orientación), barras con el cálculo rápido, sin costos.
+// DEMO (27-nov, Max): dibuja y muestra en 3D cualquier reja o portón, con las medidas que quiera. La lista de corte, las
+// barras, el peso y las cotas se ven solo en la reja de ventana hasta 1500 × 1000 (en cualquier orientación: fabricable);
+// fuera de eso, una tarjeta con candado, la cantidad de piezas y la marca «DEMO» en el dibujo y en el 3D. Sin costos.
 // PRO (repo privado): los portones (batiente 1 y 2 hojas, corredizo), barras con el optimizador completo (en un
 // Worker, para no trabar la pantalla) y los costos.
 import * as P from "../portones/motor.js";
@@ -72,19 +74,20 @@ function guardar() {
   trabajos?.cambio();
 }
 const perfiles = () => P.perfilesDe(est.perfiles.filter((m, i) => !repetido(est.perfiles, i)));
+/** ¿Se ven la lista de corte, las barras, el peso y las cotas? PRO siempre; DEMO, la reja de ventana hasta 1500 × 1000. */
+const fabricable = (it = est.item) => !!pro || P.demoPermite(it);
 
 export async function montar(cont) {
   raiz = cont;
   est = cargarMemoria();
   const tipos = await cargarPro("portones/tipos.js");
   if (tipos) {
-    P.registrarTipos(tipos.TIPOS_PORTON);
+    if (tipos.TIPOS_PORTON) P.registrarTipos(tipos.TIPOS_PORTON);   // los mismos del motor público (pro.bin viejo)
     pro = tipos;
     optPro = await cargarPro("barras/optimizar.js");
     salidaPdf = await cargarPro("salidas/portones.js");
     rutaOpt = urlPro("barras/optimizar.js");
   }
-  if (!pro && !P.demoPermite(est.item)) Object.assign(est.item, P.DEMO_MUESTRA);   // la DEMO arranca en la reja
   ponerContexto("Rejas y portones", "");
   cont.innerHTML = PLANTILLA;
   armarTarjetas();
@@ -384,21 +387,24 @@ const PLANTILLA = `
       <figure class="p-elev">
         <div class="p-elev-cab">
           <span class="p-luz" id="p-luz"></span>
-          <label class="tilde tilde-chica"><input type="checkbox" id="p-cotas"> Cotas</label>
+          <label class="tilde tilde-chica"><input type="checkbox" id="p-cotas"> Cotas<span class="tag" id="p-cotas-pro" hidden>PRO</span></label>
           <button type="button" class="btn-3d" id="p-3d"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l8.5 4.75v9.5L12 21.5l-8.5-4.75v-9.5Z"/><path d="M3.5 7.25L12 12l8.5-4.75M12 12v9.5"/></svg>Ver en 3D</button>
           <button type="button" class="btn-sec btn-chico btn-ampliar" id="p-ampliar" aria-label="Ampliar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg><span class="p-amp-txt">Ampliar</span></button>
         </div>
         <div class="p-dibujo" id="p-dibujo"></div>
-        <figcaption class="nota">Tocá una pieza para ver dónde va y su renglón en la lista.</figcaption>
+        <figcaption class="nota" id="p-elev-nota">Tocá una pieza para ver dónde va y su renglón en la lista.</figcaption>
       </figure>
       <p class="nota p-aviso" id="p-avisos" hidden></p>
-      <h2 class="sub">Lista de corte</h2>
-      <ol class="p-lista" id="p-lista"></ol>
-      <h2 class="sub">Barras a comprar</h2>
-      <p class="nota" id="p-opt" hidden>Optimizando las barras…</p>
-      <div id="p-barras"></div>
-      <div class="p-datos" id="p-datos"></div>
-      <div id="p-costo"></div>
+      <div class="p-candado" id="p-candado" hidden></div>
+      <div id="p-fabricar">
+        <h2 class="sub">Lista de corte</h2>
+        <ol class="p-lista" id="p-lista"></ol>
+        <h2 class="sub">Barras a comprar</h2>
+        <p class="nota" id="p-opt" hidden>Optimizando las barras…</p>
+        <div id="p-barras"></div>
+        <div class="p-datos" id="p-datos"></div>
+        <div id="p-costo"></div>
+      </div>
     </div>
     <div class="acciones">
       <button type="button" class="btn-bloq" id="p-pdf" data-abre-pro="pdf"><span class="candado" aria-hidden="true"></span>Imprimir o guardar en PDF <span class="tag">PRO</span></button>
@@ -429,7 +435,7 @@ const ptsSvg = (pts) => pts.map(([x, y]) => `${+x.toFixed(3)},${+(-y).toFixed(3)
  * Elevación R en SVG. anchoPx / altoMax: lugar disponible en píxeles (de ahí sale la escala, para que textos y
  * marcas tengan tamaño fijo en pantalla). marcas: {clave: fila} para colorear; sel: marca resaltada.
  */
-function svgElevacion(R, { anchoPx, altoMax = 1e9, marcas = null, seleccion = null, cotas = false, mini = false, travAtras = false }) {
+function svgElevacion(R, { anchoPx, altoMax = 1e9, marcas = null, seleccion = null, cotas = false, mini = false, travAtras = false, demo = false }) {
   const [x0, y0, x1, y1] = P.limites(R, cotas);
   const [W, H] = R.vano;
   const borde = mini ? 3 : cotas ? 16 : 34;                       // px alrededor (sin cotas: los textos del vano)
@@ -464,6 +470,10 @@ function svgElevacion(R, { anchoPx, altoMax = 1e9, marcas = null, seleccion = nu
       const [fi, o] = MONO[capa];
       out.push(`<polygon points="${ptsSvg(pts)}" fill="${fi}" stroke="${o}" stroke-width="${mini ? 0.6 : 1}" vector-effect="non-scaling-stroke"/>`);
     }
+  }
+  if (demo && !mini) {                                // marca de agua de la DEMO (no tapa los toques: pointer-events none)
+    const fs = Math.min(W / 3.2, H / 1.6);
+    out.push(`<text x="${W / 2}" y="${-H / 2}" font-size="${fs}" class="p-marca-demo" transform="rotate(-18 ${W / 2} ${-H / 2})">DEMO</text>`);
   }
   for (const [, [cx, cy], f] of mejor.values()) {
     if (seleccion && f.marca !== seleccion) continue;
@@ -516,35 +526,11 @@ function croquisSvg(corte) {
 
 // ------------------------------------------------------------------ formulario
 function armarTarjetas() {
-  const tarjeta = (clave, k, R) => {
-    const bloq = clave === "tipo" && !pro && !P.DEMO_TIPOS.includes(k);
-    return `<button type="button" class="p-tarjeta" data-clave="${clave}" data-v="${k}" aria-pressed="false">` +
-      `<span class="p-mini">${R ? svgElevacion(R, { anchoPx: 96, altoMax: 60, mini: true }) : ""}</span>` +
-      `<span class="p-tnom">${CORTOS[k]}${bloq ? ' <span class="tag">PRO</span>' : ""}</span></button>`;
-  };
-  // en la DEMO los portones no están registrados: sus miniaturas se arman con las hojas de muestra
-  $("#p-tipos").innerHTML = P.TIPOS.map(([k]) => tarjeta("tipo", k, P.miniatura(k, "verticales") || miniDemo(k))).join("");
+  const tarjeta = (clave, k, R) => `<button type="button" class="p-tarjeta" data-clave="${clave}" data-v="${k}" aria-pressed="false">` +
+    `<span class="p-mini">${R ? svgElevacion(R, { anchoPx: 96, altoMax: 60, mini: true }) : ""}</span>` +
+    `<span class="p-tnom">${CORTOS[k]}</span></button>`;
+  $("#p-tipos").innerHTML = P.TIPOS.map(([k]) => tarjeta("tipo", k, P.miniatura(k, "verticales"))).join("");
   $("#p-rellenos").innerHTML = P.RELLENOS.map(([k]) => tarjeta("relleno", k, P.miniatura("reja_ventana", k, 0))).join("");
-}
-
-/**
- * Miniatura de un portón en la DEMO (el motor de los portones es PRO): las hojas de muestra de portones.miniatura,
- * cada una dibujada como una reja y corrida a su lugar.
- */
-function miniDemo(tipo) {
-  const muestra = {
-    batiente_1: [[1200, 1800], [[40, 60, 1120, 1740]]],
-    batiente_2: [[2400, 1600], [[40, 60, 1140, 1540], [1220, 60, 1140, 1540]]],
-    corredizo: [[2400, 1500], [[0, 60, 2550, 1440]]],
-  }[tipo];
-  if (!muestra) return null;
-  const R = { vano: muestra[0], formas: [], cotas: [], u: 1 };
-  for (const [x, y, w, h] of muestra[1]) {
-    const g = P.generar({ ...P.ITEM_DEF, tipo: "reja_ventana", ancho: w, alto: h, perfil_marco: "m", perfil_relleno: "r", luz_max: 150, n_trav: 1 },
-      { m: new P.Perfil("m", "tubo", 60, 60, 2), r: new P.Perfil("r", "tubo", 30, 30, 1.5) });
-    for (const [capa, pts] of g.formas) R.formas.push([capa, pts.map(([px, py]) => [px + x, py + y]), null]);
-  }
-  return R;
 }
 
 function armarCampos() {
@@ -552,7 +538,7 @@ function armarCampos() {
     const inp = $(`#p-${k}`);
     inp.addEventListener("focus", () => inp.select());
     inp.addEventListener("input", () => cambioCampo(k, inp));
-    inp.addEventListener("change", () => ponerValores());          // al salir: el valor que quedó (o el tope de la DEMO)
+    inp.addEventListener("change", () => ponerValores());          // al salir: el valor que quedó
   }
 }
 
@@ -563,19 +549,6 @@ function cambioCampo(k, inp) {
   const minimo = CAMPOS[k][2];
   if (!(v >= minimo)) { cont.classList.add("mal"); return; }
   cont.classList.remove("mal");
-  avisoDemo = "";
-  if (!pro && ["ancho", "alto", "sob_lat", "sob_arr", "sob_abj"].includes(k)) {
-    // el tope de la DEMO es sobre la reja que se fabrica (hueco + lo que sobresale): lo más que entra con este campo
-    const entra = (x) => P.demoPermite({ ...it, [k]: x });
-    if (!entra(v)) {
-      let lo = minimo, hi = v;
-      for (let i = 0; i < 60; i++) { const m = (lo + hi) / 2; if (entra(m)) lo = m; else hi = m; }
-      v = entra(Math.round(lo)) ? Math.round(lo) : Math.floor(lo);
-      if (!entra(v)) v = minimo;
-      avisoDemo = `En la versión de prueba la reja va hasta ${miles(P.DEMO_LADOS[0])} × ${miles(P.DEMO_LADOS[1])} mm (en cualquier orientación). ` +
-        `<button type="button" class="enlace" data-abre-pro="portones">Más grande y portones con la PRO</button>`;
-    }
-  }
   it[k] = v;
   if (k.startsWith("sob_") || k === "holg_hueco" || k === "ancho" || k === "alto") habilitar();
   programar();
@@ -709,7 +682,6 @@ function armarEventos() {
     const t = e.target.closest(".p-tarjeta");
     if (t) {
       const { clave, v } = t.dataset;
-      if (clave === "tipo" && !pro && !P.DEMO_TIPOS.includes(v)) { abrirPro("portones"); return; }
       const med = clave === "tipo" ? P.medidasAlCambiarTipo(est.item, v) : null;   // medidas de muestra del tipo
       est.item[clave] = v;
       if (med) { Object.assign(est.item, med); ponerValores(); }
@@ -773,7 +745,7 @@ function armarEventos() {
     inp.addEventListener("focus", () => inp.select());
     inp.addEventListener("input", () => { est[k] = inp.value; programar(k === "corte" ? 300 : 150); });
   }
-  $("#p-cotas").addEventListener("change", (e) => { est.cotas = e.target.checked; guardar(); dibujar(); });
+  $("#p-cotas").addEventListener("change", (e) => cambioCotas(e.target));
   $("#p-ampliar").addEventListener("click", abrirCompleta);
   $("#p-3d").addEventListener("click", () => {
     if (!calc?.resultados[0]) return;
@@ -1048,6 +1020,9 @@ function seleccionar(m) {
 function mostrar() {
   const c = calc, R = c.resultados[0];
   if (sel && !c.filas.some((f) => f.marca === sel)) sel = null;
+  const abierto = fabricable();
+  avisoDemo = abierto ? "" : "Versión de prueba: la lista de corte, las barras y las cotas son de la PRO. " +
+    `<button type="button" class="enlace" data-abre-pro="portones">Ver la PRO</button>`;
   const demo = $("#p-demo");
   demo.innerHTML = avisoDemo;
   demo.hidden = !avisoDemo;
@@ -1059,21 +1034,59 @@ function mostrar() {
   medirVista();
   if (!R) { $("#p-opt").hidden = true; return; }
   const marcas = c.filas.length, perfs = c.grupos.length;
+  // fuera de lo fabricable de la DEMO: solo la cantidad de piezas (ni barras, ni kg, ni luces: Max, 27-nov)
   $("#p-resumen").innerHTML =
     `<div class="dato"><span class="dato-v">${c.piezas}</span><span class="dato-r">piezas, ${marcas} ${marcas === 1 ? "marca" : "marcas"}</span></div>` +
-    `<div class="dato"><span class="dato-v">${c.n_barras}</span><span class="dato-r">${c.n_barras === 1 ? "barra" : "barras"}, ${perfs} ${perfs === 1 ? "perfil" : "perfiles"}</span></div>` +
-    `<div class="dato"><span class="dato-v">${n1(c.kg_neto)}</span><span class="dato-r">kg (comprar ${n1(c.kg_compra)})</span></div>`;
+    (abierto ? `<div class="dato"><span class="dato-v">${c.n_barras}</span><span class="dato-r">${c.n_barras === 1 ? "barra" : "barras"}, ${perfs} ${perfs === 1 ? "perfil" : "perfiles"}</span></div>` +
+    `<div class="dato"><span class="dato-v">${n1(c.kg_neto)}</span><span class="dato-r">kg (comprar ${n1(c.kg_compra)})</span></div>` : "");
   const luces = [...new Set(R.luces.map((v) => P.red(v, 1)))].sort((a, b) => a - b);
-  $("#p-luz").textContent = luces.length ? `Luz real: ${luces.map((v) => corto(v, 4)).join(" / ")} mm` : "";
+  $("#p-luz").textContent = abierto && luces.length ? `Luz real: ${luces.map((v) => corto(v, 4)).join(" / ")} mm` : "";
   const av = $("#p-avisos");
-  const avisos = [...c.avisos];
+  // el aviso de empalme trae el largo de la pieza: con candado, sin números
+  const avisos = abierto ? [...c.avisos] : c.avisos.length ? ["Hay piezas más largas que la barra: van con empalme."] : [];
   av.textContent = avisos.map((a) => `⚠ ${a}`).join(" ");
   av.hidden = !avisos.length;
+  $("#p-cotas").checked = !!est.cotas && abierto;
+  $("#p-cotas-pro").hidden = abierto;
+  $("#p-elev-nota").textContent = abierto ? "Tocá una pieza para ver dónde va y su renglón en la lista."
+    : "Tocá una pieza para ver dónde va y sus iguales (la misma letra).";
+  $("#p-fabricar").hidden = !abierto;
+  $("#p-candado").hidden = abierto;
   dibujar();
-  lista();
-  barras();
-  datos();
-  costo();
+  if (abierto) {
+    lista();
+    barras();
+    datos();
+    costo();
+  } else {                                            // nada de largos, cortes ni barras en la página
+    for (const id of ["#p-lista", "#p-barras", "#p-datos", "#p-costo"]) $(id).innerHTML = "";
+    $("#p-opt").hidden = true;
+    candado();
+  }
+}
+
+/** Tarjeta con candado en lugar de la lista, las barras y el peso (DEMO, fuera de la reja de ventana de 1500 × 1000). */
+function candado() {
+  const c = calc, reja = est.item.tipo === "reja_ventana";
+  $("#p-candado").innerHTML = `<p class="p-cand-tit"><span class="candado" aria-hidden="true"></span>Lista de corte, barras y cotas</p>
+    <p>${c.piezas === 1 ? "La pieza ya está calculada" : `Las ${c.piezas} piezas ya están calculadas`}. Con la PRO ves el largo y el corte
+      de cada una, las barras a comprar, el peso y las cotas de armado, y sacás el PDF.</p>
+    ${reja ? `<p class="nota">En la versión de prueba la reja de ventana sale completa hasta ${miles(P.DEMO_LADOS[0])} × ${miles(P.DEMO_LADOS[1])} mm (en cualquier orientación).</p>` : ""}
+    <button type="button" class="btn-prim" data-abre-pro="portones">Hacelo con la PRO · ${PRECIO}</button>`;
+}
+
+/** Interruptor «Cotas» (abajo del dibujo y en pantalla completa): con candado abre la compra. */
+function cambioCotas(caja) {
+  if (!fabricable()) {
+    caja.checked = false;
+    abrirPro("portones");
+    return;
+  }
+  est.cotas = caja.checked;
+  $("#p-cotas").checked = est.cotas;
+  guardar();
+  dibujar();
+  if (completa) dibujarCompleta();
 }
 
 function dibujar() {
@@ -1082,8 +1095,8 @@ function dibujar() {
   const w = Math.max(cont.clientWidth, 240);
   const conHoja = !!raiz.querySelector("#p-hoja");     // celular / tablet: el alto lo da el lugar que deja la hoja
   cont.innerHTML = svgElevacion(calc.resultados[0], {
-    anchoPx: w, altoMax: conHoja ? Math.max(120, cont.clientHeight) : Math.max(300, Math.min(window.innerHeight * 0.62, 640)), marcas: calc.marcas, seleccion: sel, cotas: !!est.cotas,
-    travAtras: travAtras(),
+    anchoPx: w, altoMax: conHoja ? Math.max(120, cont.clientHeight) : Math.max(300, Math.min(window.innerHeight * 0.62, 640)), marcas: calc.marcas, seleccion: sel,
+    cotas: !!est.cotas && fabricable(), travAtras: travAtras(), demo: !fabricable(),
   });
 }
 
@@ -1164,7 +1177,7 @@ function abrirCompleta() {
   completa.className = "p-completa";
   completa.innerHTML = `<div class="p-completa-barra">
       <button type="button" data-z="-1" aria-label="Alejar">−</button><button type="button" data-z="1" aria-label="Acercar">+</button>
-      <label class="tilde tilde-chica"><input type="checkbox" class="p-c-cotas"${est.cotas ? " checked" : ""}> Cotas</label>
+      <label class="tilde tilde-chica"><input type="checkbox" class="p-c-cotas"${est.cotas && fabricable() ? " checked" : ""}> Cotas${fabricable() ? "" : '<span class="tag">PRO</span>'}</label>
       <button type="button" class="p-c-cerrar">Cerrar</button></div>
     <div class="p-completa-dib"></div>`;
   document.body.append(completa);
@@ -1176,7 +1189,7 @@ function abrirCompleta() {
     const m = e.target.closest("[data-m]");
     if (m) seleccionar(m.dataset.m);
   });
-  completa.querySelector(".p-c-cotas").addEventListener("change", (e) => { est.cotas = e.target.checked; $("#p-cotas").checked = est.cotas; guardar(); dibujar(); dibujarCompleta(); });
+  completa.querySelector(".p-c-cotas").addEventListener("change", (e) => cambioCotas(e.target));
   completa.addEventListener("keydown", (e) => { if (e.key === "Escape") cerrarCompleta(); });
   dibujarCompleta();
   completa.querySelector(".p-c-cerrar").focus();
@@ -1188,7 +1201,8 @@ function dibujarCompleta() {
   const w = cont.clientWidth, h = cont.clientHeight;
   const fx = cont.scrollLeft / Math.max(cont.scrollWidth, 1), fy = cont.scrollTop / Math.max(cont.scrollHeight, 1);
   cont.innerHTML = svgElevacion(calc.resultados[0], {
-    anchoPx: w * zoom, altoMax: h * zoom, marcas: calc.marcas, seleccion: sel, cotas: !!est.cotas, travAtras: travAtras(),
+    anchoPx: w * zoom, altoMax: h * zoom, marcas: calc.marcas, seleccion: sel, cotas: !!est.cotas && fabricable(), travAtras: travAtras(),
+    demo: !fabricable(),
   });
   cont.scrollLeft = fx * cont.scrollWidth;
   cont.scrollTop = fy * cont.scrollHeight;
@@ -1269,16 +1283,15 @@ const travAtras = (it = est.item) => pasantes(it) && it.trav_lado === "atras";
 /** Opciones de la vista 3D para un ítem (el del trabajo o el de un modelo de la galería). */
 const opciones3D = (it) => ({ espChapa: it.esp_chapa, piso: P.PORTONES.includes(it.tipo), pasantes: pasantes(it),
   travAtras: travAtras(it), relleno: it.relleno, cruce: it.cruce, chapaTrav: P.chapaATope(it) ? "a_tope" : "atras",
-  tipo: it.tipo, sobrepuesta: P.rejaSobrepuesta(it) });
+  tipo: it.tipo, sobrepuesta: P.rejaSobrepuesta(it), demo: !fabricable(it) });
 
 // ------------------------------------------------------------------ galería de modelos (27-nov, Max)
 // Al entrar sin modelo elegido (primera vez o «Nuevo») y con «Cambiar» de la barra del modelo. Tarjetas con la imagen
 // del 3D (img/modelos/, tools/capturas_modelos.py); tocar una abre el detalle: la imagen grande, «Girar en 3D», qué trae
-// y «Usar este modelo» (carga el diseño y conserva medidas y perfiles). En la DEMO los modelos de portón muestran la
-// imagen y la compra (el cálculo de los portones es PRO); la reja de ventana se usa como siempre.
+// y «Usar este modelo» (carga el diseño y conserva medidas y perfiles). En la DEMO también se usan todos (27-nov): lo que
+// no es fabricable muestra la lista con candado.
 let galPara = "porton";
 const ICONO_LIBRE = `<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M6 10h36v30H6Z"/><path d="M24 18v14M17 25h14"/></svg>`;
-const bloqueado = (para) => !pro && para === "porton";
 
 function armarGaleria() {
   for (const r of raiz.querySelectorAll('input[name="p-gal-para"]')) {
@@ -1297,7 +1310,6 @@ function armarGaleria() {
     if (acc === "volver") verLista();
     else if (acc === "usar") usarModelo(id);
     else if (acc === "girar") girarModelo(id);
-    else if (acc === "reja") { galPara = "reja"; verLista(); pintarGaleria(); }
   });
   $("#p-modelo-barra").addEventListener("click", () => mostrarGaleria(true));
 }
@@ -1335,7 +1347,7 @@ function pintarGaleria() {
     tarjeta(M.LIBRE, ICONO_LIBRE, "Diseño libre", "Arrancás con lo de siempre y lo armás como quieras.") +
     M.modelosDe(galPara).map((m) => tarjeta(m.id,
       `<img src="${M.imagenModelo(m.id, galPara)}" alt="" width="720" height="540" loading="lazy" decoding="async">`,
-      esc(m.nombre), esc(m.desc), bloqueado(galPara) ? '<span class="tag">PRO</span>' : "")).join("");
+      esc(m.nombre), esc(m.desc))).join("");
 }
 
 /** Lo que trae un modelo, en renglones «rótulo: valor». */
@@ -1357,21 +1369,18 @@ function filasModelo(m) {
 function verModelo(id) {
   const m = M.modelo(id);
   if (!m) return;
-  const det = $("#p-gal-det"), bloq = bloqueado(galPara);
+  const det = $("#p-gal-det");
   det.dataset.modelo = id;
   det.innerHTML = `<button type="button" class="btn-sec btn-chico btn-quieto p-det-volver" data-acc="volver">← Modelos</button>
     <div class="p-det-cuerpo">
       <figure class="p-det-img"><img src="${M.imagenModelo(id, galPara)}" alt="${esc(m.nombre)}" width="720" height="540">
-        ${bloq ? "" : `<button type="button" class="btn-3d p-det-girar" data-acc="girar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l8.5 4.75v9.5L12 21.5l-8.5-4.75v-9.5Z"/><path d="M3.5 7.25L12 12l8.5-4.75M12 12v9.5"/></svg>Girar en 3D</button>`}</figure>
+        <button type="button" class="btn-3d p-det-girar" data-acc="girar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l8.5 4.75v9.5L12 21.5l-8.5-4.75v-9.5Z"/><path d="M3.5 7.25L12 12l8.5-4.75M12 12v9.5"/></svg>Girar en 3D</button></figure>
       <div class="p-det-txt">
         <h2 class="p-det-tit">${esc(m.nombre)}</h2>
         <p class="p-det-desc">${esc(m.desc)}</p>
         <dl class="p-det-filas">${filasModelo(m).map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join("")}</dl>
         <p class="nota">${galPara === "porton" ? "Sirve para batiente de 1 o 2 hojas y corredizo: el tipo lo elegís después. " : ""}Tus medidas y perfiles no cambian; todo se puede modificar después.</p>
-        <div class="p-det-acc">${bloq
-          ? `<button type="button" class="btn-prim p-det-pro" data-abre-pro="portones">Hacelo con la PRO · ${PRECIO}</button>
-             <p class="nota">En la versión de prueba: reja de ventana hasta ${miles(P.DEMO_LADOS[0])} × ${miles(P.DEMO_LADOS[1])} mm. <button type="button" class="enlace" data-acc="reja">Ver los modelos de reja</button></p>`
-          : `<button type="button" class="btn-prim" data-acc="usar">Usar este modelo</button>`}
+        <div class="p-det-acc"><button type="button" class="btn-prim" data-acc="usar">Usar este modelo</button>
           <button type="button" class="btn-sec btn-quieto p-det-otro" data-acc="volver">Ver otro modelo</button></div>
       </div>
     </div>`;
@@ -1380,13 +1389,11 @@ function verModelo(id) {
   window.scrollTo(0, 0);
 }
 
-/** El ítem del trabajo con el modelo (en la DEMO, «Diseño libre» de la pestaña de portones queda en la reja). */
-const conModelo = (id) => M.aplicarModelo(est.item, id, id === M.LIBRE && bloqueado(galPara) ? "reja" : galPara);
+/** El ítem del trabajo con el modelo. */
+const conModelo = (id) => M.aplicarModelo(est.item, id, galPara);
 
 function usarModelo(id) {
-  if (id !== M.LIBRE && bloqueado(galPara)) { abrirPro("portones"); return; }
   est.item = conModelo(id);
-  avisoDemo = "";
   sel = null;
   ocultarGaleria();
   ponerValores();
