@@ -603,6 +603,71 @@ body.sin-scroll { overflow: hidden; }
 }
 .modo-hoja.con-instalar { padding-bottom: 0; }
 .modo-hoja .instalar { bottom: calc(72px + env(safe-area-inset-bottom)); z-index: 30; }
+/* galería de modelos (27-nov, Max): al entrar sin modelo elegido o con «Cambiar»; oculta el formulario y la hoja */
+/* (la hoja de trabajos, un dialog dentro de .b-datos, sigue disponible: «Nuevo» / abrir desde la galería) */
+.p-en-galeria .app-portones > .b-res, .p-en-galeria .b-datos > :not(dialog), .p-en-galeria #p-hoja,
+.p-en-galeria #p-hoja-nav, .p-en-galeria #hoja-perfiles { display: none; }
+.p-en-galeria .app-portones { display: block; padding: 0; min-height: 0; }
+.p-galeria { max-width: 1100px; margin: 0 auto; padding: 4px 16px 28px; }
+.p-galeria[hidden], .p-gal-lista[hidden], .p-gal-det[hidden], .p-gal-ley[hidden] { display: none; }
+.p-gal-cab { display: flex; align-items: center; gap: 10px; }
+.p-gal-tit { margin: 6px 0 0; font: 700 26px "Barlow Semi Condensed", "Barlow", sans-serif; }
+.p-gal-cab .btn-chico { margin-left: auto; }
+.p-gal-sub { margin: 2px 0 10px; font-size: 15px; color: var(--gris); }
+.p-gal-pest { margin-bottom: 10px; background: #dfe4ea; }
+.p-gal-pest span { min-height: 42px; font-weight: 600; }
+.p-gal-ley {
+  display: flex; gap: 8px; align-items: flex-start; margin: 0 0 12px; padding: 10px 12px; background: var(--hoja);
+  border: 1px solid var(--linea); border-radius: var(--radio); font-size: 14px; line-height: 1.35;
+}
+.p-gal-ley svg { flex: none; width: 20px; height: 20px; fill: none; stroke: var(--of-texto, var(--of)); stroke-width: 2; stroke-linecap: round; }
+.p-modelos { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+@media (min-width: 700px) { .p-modelos { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (min-width: 1000px) { .p-modelos { grid-template-columns: repeat(4, minmax(0, 1fr)); } .p-galeria { padding-inline: 28px; } }
+.p-modelo {
+  display: flex; flex-direction: column; width: 100%; height: 100%; padding: 0 0 10px; overflow: hidden; text-align: left;
+  border: 1px solid var(--linea); border-radius: var(--radio-g); background: var(--hoja); color: var(--tinta);
+}
+.p-modelo:hover { border-color: var(--of); }
+.p-modelo.elegido { border: 2px solid var(--of); }
+.p-modelo-img { position: relative; display: grid; place-items: center; aspect-ratio: 4 / 3; background: var(--tile); }
+.p-modelo-img img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.p-modelo-img .tag { position: absolute; top: 8px; right: 8px; }
+.p-libre { border: 2px dashed var(--of); }
+.p-libre .p-modelo-img { background: var(--of-suave); color: var(--of); }
+.p-libre .p-modelo-img svg { width: 56px; height: 56px; fill: none; stroke: currentColor; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.p-modelo-nom { margin: 8px 10px 0; font-weight: 700; font-size: 15px; line-height: 1.2; }
+.p-modelo-desc { margin: 3px 10px 0; font-size: 13px; color: var(--gris); line-height: 1.3; }
+.p-det-volver { margin: 6px 0 10px; }
+.p-det-img { position: relative; margin: 0; border-radius: var(--radio-g); overflow: hidden; background: var(--tile); }
+.p-det-img img { display: block; width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: cover; }
+.p-det-girar { position: absolute; right: 10px; bottom: 10px; min-height: 44px; }
+.p-det-tit { margin: 14px 0 4px; font: 700 24px "Barlow Semi Condensed", "Barlow", sans-serif; }
+.p-det-desc { margin: 0 0 10px; font-size: 15px; color: var(--gris); }
+.p-det-filas { margin: 0; padding: 2px 14px; background: var(--hoja); border: 1px solid var(--linea); border-radius: var(--radio); }
+.p-det-filas div { display: flex; justify-content: space-between; gap: 10px; padding: 9px 0; font-size: 15px; }
+.p-det-filas div + div { border-top: 1px solid var(--linea); }
+.p-det-filas dt { color: var(--gris); }
+.p-det-filas dd { margin: 0; font-weight: 700; text-align: right; }
+.p-det-acc { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.p-det-pro { background: var(--rojo); }
+.p-det-otro { width: 100%; }
+@media (min-width: 900px) {
+  .p-det-cuerpo { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 28px; align-items: start; }
+  .p-det-tit { margin-top: 0; }
+}
+/* barra del modelo arriba del dibujo (y del formulario en la PC): vuelve a la galería */
+.p-modelo-barra {
+  display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; margin: 0 0 8px; padding: 0 12px;
+  border: 0; border-radius: var(--radio); background: var(--of-suave); color: var(--tinta); font-size: 14px; text-align: left;
+}
+.p-modelo-barra[hidden] { display: none; }
+.p-modelo-barra svg { flex: none; width: 18px; height: 18px; fill: none; stroke: var(--of-texto, var(--of)); stroke-width: 2; }
+.p-mb-txt { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.p-mb-mod { flex: none; color: var(--of-texto, var(--of)); }
+.p-mb-mod[hidden] { display: none; }
+.p-mb-ir { flex: none; font-weight: 700; color: var(--of-texto, var(--of)); }
+.modo-hoja .p-modelo-barra { margin-bottom: 6px; }
 .p-elev { margin: 14px 0 0; background: var(--hoja); border-radius: var(--radio-g); padding: 8px 8px 4px; box-shadow: 0 0 0 1px var(--linea); }
 .p-elev-cab { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .p-luz { flex: 1 1 auto; font: 600 15px var(--num); }

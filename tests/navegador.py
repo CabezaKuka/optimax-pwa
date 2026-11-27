@@ -60,6 +60,16 @@ def abrir_hoja(pg):
         pg.wait_for_timeout(400)
 
 
+def galeria_libre(pg):
+    """Rejas y portones (27-nov): sin modelo elegido se abre la galería de modelos. «Reja de ventana» + «Diseño libre»
+    deja el arranque de siempre (la reja de ventana de muestra); si no hay galería, no hace nada."""
+    pg.wait_for_selector("#p-galeria:not([hidden]), #p-modelo-barra:not([hidden])", timeout=15000)
+    if pg.is_visible("#p-galeria"):
+        pg.click(".p-gal-pest label:has-text('Reja de ventana')")
+        pg.click("[data-modelo=libre]")
+        pg.wait_for_selector("#p-galeria", state="hidden")
+
+
 def completa(pg):
     return pg.evaluate("!!document.querySelector('.plancha.completa')")
 
@@ -382,6 +392,7 @@ def portones_demo(pg, base, cap):
     pg.goto(base)
     pg.wait_for_selector(".inicio")
     pg.click("a.mod[href='#portones']")
+    galeria_libre(pg)
     pg.wait_for_selector("#p-lista li")
     abrir_hoja(pg)
     control(pg.input_value("#p-ancho") == "800" and pg.input_value("#p-alto") == "800", "portones: la reja de muestra de 800 × 800")
@@ -751,6 +762,7 @@ def instalar(b, base, cap):
     # Facebook en Android: abrir en Chrome (intent) + pasos + copiar
     ctx, pg, errs = abrir(user_agent=ANDROID_FB, permissions=["clipboard-read", "clipboard-write"])
     pg.goto(base + "#portones")
+    galeria_libre(pg)
     pg.wait_for_selector("#p-lista li")
     abrir_hoja(pg)
     control(pg.is_visible("#instalar") and pg.is_hidden("#btn-instalar"), "instalar Facebook: en un módulo, el cartel")
@@ -797,6 +809,7 @@ def portones_arriba(b, base):
     errs = []
     pg.on("pageerror", lambda e: errs.append(str(e)))
     pg.goto(base + "#portones")
+    galeria_libre(pg)
     pg.wait_for_selector("#p-dibujo svg")
     abrir_hoja(pg)
     control(pg.input_value("#p-ancho") == "800" and pg.input_value("#p-alto") == "800", "portones: reja de ventana 800 × 800 por defecto")
@@ -833,6 +846,7 @@ def portones_arriba(b, base):
       const g = HTMLCanvasElement.prototype.getContext;
       HTMLCanvasElement.prototype.getContext = function (t, ...r) { return /webgl/.test(t) ? null : g.call(this, t, ...r); };""")
     pg.goto(base + "#portones")
+    galeria_libre(pg)
     pg.wait_for_selector("#p-dibujo svg")
     abrir_hoja(pg)
     pg.click("#p-3d")
@@ -851,6 +865,7 @@ def hoja_portones(b, base, cap=None):
     errs = []
     pg.on("pageerror", lambda e: errs.append(str(e)))
     pg.goto(base + "?pro=1#portones")
+    galeria_libre(pg)
     pg.wait_for_selector("#p-dibujo svg")
     pg.wait_for_timeout(500)
     bot = lambda k: f"#p-hoja-nav [data-sec={k}]"
@@ -974,6 +989,7 @@ def pc(b, base, cap):
         ctx = b.new_context(viewport={"width": 390, "height": 844}, timezone_id=zona)
         pg = ctx.new_page()
         pg.goto(base + "#portones")
+        galeria_libre(pg)
         pg.wait_for_selector("#p-lista li")
         abrir_hoja(pg)
         pg.click(".p-tarjeta[data-v=batiente_2]")
@@ -1083,6 +1099,7 @@ def pro(b, base, cap):
     # portones con PRO: batiente de 2 hojas, barras con el optimizador completo (Worker) y costos
     pg.evaluate("localStorage.removeItem('optimax-portones')")
     pg.goto(base + "#portones")
+    galeria_libre(pg)
     pg.wait_for_selector("#p-lista li")
     abrir_hoja(pg)
     control(pg.locator(".p-tarjeta[data-clave=tipo] .tag").count() == 0, "portones PRO: los portones sin «PRO»")
@@ -1310,6 +1327,7 @@ print("OK" if op["tipo"] == "barras" and sorted(pz) == [(850.0, 3), (1200.0, 5)]
         control(out == "OK", f"PC: lee el .nesting de barras de la PWA ({out[:200]})")
         # portones: la PC calcula lo mismo que la PWA
         pg.goto(base + "?pro=1#portones")
+        galeria_libre(pg)
         pg.wait_for_selector("#p-lista li", timeout=10000)
         abrir_hoja(pg)
         pg.wait_for_timeout(1500)
@@ -1360,6 +1378,186 @@ N.guardar_proyecto({p_pc!r}, [], {{"tipo": "portones", "portones": {{"version": 
     control(not errs, f"trabajos: errores de JS {errs}")
     ctx.close()
 
+def item_portones(pg):
+    return pg.evaluate("JSON.parse(localStorage['optimax-portones']).item")
+
+
+def imagenes_ok(pg):
+    """Todas las imágenes de las tarjetas de la galería existen (se piden aunque estén abajo)."""
+    return pg.evaluate("""async () => {
+      const srcs = [...document.querySelectorAll('#p-modelos img')].map((i) => i.getAttribute('src'));
+      const r = await Promise.all(srcs.map((s) => fetch(s).then((x) => x.ok && x.headers.get('content-type').includes('webp'))));
+      return srcs.length > 0 && r.every(Boolean);
+    }""")
+
+
+def galeria_demo(b, base, cap=None):
+    """Modelos de reja y portón (27-nov) en la DEMO: galería al entrar, portones con «PRO» y compra, la reja se usa."""
+    ctx = b.new_context(viewport={"width": 390, "height": 844}, device_scale_factor=2, is_mobile=True, has_touch=True)
+    pg = ctx.new_page()
+    errs = []
+    pg.on("pageerror", lambda e: errs.append(str(e)))
+    pg.on("console", lambda m: errs.append(m.text) if m.type == "error" else None)
+    pg.goto(base + "#portones")
+    pg.wait_for_selector("#p-galeria:not([hidden])")
+    control(pg.is_hidden("#p-tipos") and pg.is_hidden("#p-lista") and pg.is_hidden("#p-hoja-nav") and pg.is_hidden("#p-modelo-barra"),
+            "galería: al entrar sin modelo, la galería (sin el formulario ni la barra de abajo)")
+    control(pg.is_checked(".p-gal-pest input[value=porton]") and pg.is_visible("#p-gal-ley") and
+            "batiente de 1 o 2 hojas" in pg.inner_text("#p-gal-ley") and "corredizo" in pg.inner_text("#p-gal-ley"),
+            "galería: arranca en Portones con la leyenda de los tipos")
+    control(pg.locator(".p-modelo").count() == 13 and pg.locator(".p-modelo .tag").count() == 12 and
+            pg.locator(".p-modelo").first.get_attribute("data-modelo") == "libre", "galería DEMO: diseño libre + 12 portones con «PRO»")
+    control(pg.is_hidden("#p-gal-volver"), "galería: la primera vez, sin «Volver»")
+    control(imagenes_ok(pg), "galería: las imágenes de los portones existen")
+    if cap:
+        pg.wait_for_timeout(800)
+        pg.screenshot(path=f"{cap}/m_galeria_demo.png", full_page=True)
+    pg.click("[data-modelo=doble_franja]")
+    control(pg.is_visible("#p-gal-det") and pg.is_hidden("#p-gal-lista") and
+            "Doble con barrotes en la franja" in pg.inner_text(".p-det-tit"), "detalle: el modelo tocado")
+    filas = pg.inner_text(".p-det-filas")
+    control("Doble al centro" in filas and "200 mm" in filas and "6" in filas, f"detalle: qué trae ({filas!r})")
+    control("corredizo" in pg.inner_text("#p-gal-det .nota"), "detalle: aclara que sirve para 1 o 2 hojas y corredizo")
+    control(pg.locator(".p-det-girar").count() == 0 and pg.locator("[data-acc=usar]").count() == 0 and
+            pg.is_visible(".p-det-pro"), "detalle DEMO portón: sin 3D ni «Usar», con la compra")
+    if cap:
+        pg.screenshot(path=f"{cap}/m_detalle_demo.png", full_page=True)
+    pg.click(".p-det-pro")
+    pg.wait_for_selector("#hoja-pro[open]")
+    control("portones" in pg.inner_text("#pro-motivo"), "detalle DEMO: «Hacelo con la PRO» → hoja de compra")
+    pg.keyboard.press("Escape")
+    pg.click("[data-acc=reja]")
+    control(pg.is_checked(".p-gal-pest input[value=reja]") and pg.is_hidden("#p-gal-ley") and pg.is_visible("#p-gal-lista") and
+            pg.locator(".p-modelo").count() == 9 and pg.locator(".p-modelo .tag").count() == 0,
+            "galería: «Ver los modelos de reja» → 8 modelos de reja + diseño libre, sin «PRO»")
+    control(imagenes_ok(pg), "galería: las imágenes de la reja existen")
+    pg.click("[data-modelo=diagonales_1]")
+    control(pg.is_visible(".p-det-girar") and pg.is_visible("[data-acc=usar]"), "detalle DEMO reja: «Girar en 3D» y «Usar»")
+    pg.click(".p-det-girar")
+    pg.wait_for_selector(".p-3d[data-piezas]", timeout=15000)
+    control(int(pg.get_attribute(".p-3d", "data-piezas")) > 0 and pg.get_attribute(".p-3d", "data-entorno") == "Pared" and
+            pg.locator(".p-3d .error-txt").count() == 0, "detalle: «Girar en 3D» de la reja con su pared")
+    pg.click(".p-3d .p-c-cerrar")
+    control(item_portones(pg)["relleno"] == "verticales", "detalle: girar en 3D no cambia el trabajo")
+    pg.click("[data-acc=usar]")
+    pg.wait_for_selector("#p-galeria", state="hidden")
+    it = item_portones(pg)
+    control(it["modelo"] == "diagonales_1" and it["relleno"] == "diagonales" and it["armado"] == "pasantes" and
+            it["trav_lado"] == "atras" and it["n_trav"] == 1 and it["tipo"] == "reja_ventana" and it["ancho"] == 800,
+            f"usar: diagonales pasantes con el travesaño atrás, en la reja de 800 ({it['relleno']}, {it['armado']}, {it['trav_lado']})")
+    control(pg.is_visible("#p-modelo-barra") and "Diagonales · 1 travesaño" in pg.inner_text("#p-modelo-barra") and
+            pg.is_hidden("#p-mb-mod") and pg.is_visible("#p-hoja-nav") and pg.is_visible("#p-dibujo svg"),
+            "usar: la pantalla de siempre con la barra del modelo")
+    y = lambda sel: pg.locator(sel).bounding_box()["y"]
+    control(y("#p-modelo-barra") < y(".p-elev"), "barra del modelo: arriba del dibujo")
+    if cap:
+        pg.screenshot(path=f"{cap}/m_usado_demo.png")
+    pg.click("#p-hoja-nav [data-sec=relleno]")
+    pg.wait_for_timeout(300)
+    pg.click(".p-tarjeta[data-v=rombos]")
+    pg.wait_for_timeout(300)
+    control(pg.is_visible("#p-mb-mod") and "modificado" in pg.inner_text("#p-modelo-barra"), "barra: cambiar el relleno → «modificado»")
+    pg.click("#p-hoja-nav [data-sec=medidas]")
+    pg.click("#p-hoja-cerrar")
+    pg.click("#p-modelo-barra")
+    pg.wait_for_selector("#p-galeria:not([hidden])")
+    control(pg.is_visible("#p-gal-volver") and pg.is_checked(".p-gal-pest input[value=reja]") and
+            pg.get_attribute("[data-modelo=diagonales_1]", "aria-current") == "true", "Cambiar: galería en la reja, con el modelo marcado y «Volver»")
+    pg.click("#p-gal-volver")
+    pg.wait_for_selector("#p-galeria", state="hidden")
+    control(item_portones(pg)["relleno"] == "rombos", "Volver: el diseño queda como estaba")
+    pg.reload()
+    pg.wait_for_selector("#p-dibujo svg")
+    control(pg.is_hidden("#p-galeria") and pg.is_visible("#p-modelo-barra"), "recargar: con modelo elegido va directo al diseño")
+    # diseño libre desde la pestaña de portones en la DEMO: queda la reja
+    pg.evaluate("localStorage.removeItem('optimax-portones')")
+    pg.reload()
+    pg.wait_for_selector("#p-galeria:not([hidden])")
+    pg.click("[data-modelo=libre]")
+    pg.wait_for_selector("#p-galeria", state="hidden")
+    it = item_portones(pg)
+    control(it["modelo"] == "libre" and it["tipo"] == "reja_ventana" and "Diseño libre" in pg.inner_text("#p-modelo-barra"),
+            "diseño libre DEMO: la reja de siempre, barra «Diseño libre»")
+    control(not errs, f"galería DEMO: errores de JS {errs}")
+    ctx.close()
+
+
+def galeria_pro(b, base, cap=None):
+    """Modelos de reja y portón con la PRO: portones, 3D del modelo, aplicar conserva medidas, PC."""
+    ctx = b.new_context(viewport={"width": 390, "height": 844}, device_scale_factor=2, is_mobile=True, has_touch=True)
+    pg = ctx.new_page()
+    errs = []
+    pg.on("pageerror", lambda e: errs.append(str(e)))
+    pg.on("console", lambda m: errs.append(m.text) if m.type == "error" else None)
+    pg.goto(base + "?pro=1#portones")
+    pg.wait_for_selector("#p-galeria:not([hidden])")
+    control(pg.locator(".p-modelo").count() == 13 and pg.locator(".p-modelo .tag").count() == 0, "galería PRO: portones sin «PRO»")
+    pg.click("[data-modelo=barrotes_doble]")
+    pg.click(".p-det-girar")
+    pg.wait_for_selector(".p-3d[data-piezas]", timeout=15000)
+    control(int(pg.get_attribute(".p-3d", "data-piezas")) > 0 and pg.get_attribute(".p-3d", "data-piso") == "adoquin" and
+            pg.locator(".p-3d .error-txt").count() == 0, "detalle PRO: «Girar en 3D» del portón")
+    pg.click(".p-3d .p-c-cerrar")
+    pg.click("[data-acc=usar]")
+    pg.wait_for_selector("#p-galeria", state="hidden")
+    pg.wait_for_selector("#p-dibujo svg")
+    it = item_portones(pg)
+    control(it["tipo"] == "batiente_2" and it["ancho"] == 3000 and it["alto"] == 2000 and it["trav_modo"] == "doble" and
+            it["n_trav"] == 2, "usar PRO: de la reja de muestra al portón de 3000 × 2000 con travesaño doble")
+    control(pg.is_hidden("#p-error") and pg.locator("#p-lista li").count() > 0, "usar PRO: se calcula sin errores")
+    # cambiar las medidas y el tipo no es «modificado»; elegir otro modelo conserva medidas y tipo
+    abrir_hoja(pg)
+    pg.click(".p-tarjeta[data-v=corredizo]")
+    pg.click("#p-hoja-nav [data-sec=medidas]")
+    pg.fill("#p-ancho", "4200")
+    pg.wait_for_timeout(500)
+    control(pg.is_hidden("#p-mb-mod"), "medidas y tipo: no es «modificado»")
+    pg.click("#p-hoja-cerrar")
+    pg.click("#p-modelo-barra")
+    pg.click("[data-modelo=chapa_panos]")
+    pg.click("[data-acc=usar]")
+    pg.wait_for_selector("#p-galeria", state="hidden")
+    pg.wait_for_timeout(500)
+    it = item_portones(pg)
+    control(it["tipo"] == "corredizo" and it["ancho"] == 4200 and it["relleno"] == "chapa" and it["n_panos"] == 3 and
+            it["trav_modo"] == "repartidos" and it["modelo"] == "chapa_panos", "otro modelo: conserva tipo y medidas, cambia el diseño")
+    control("Chapas a cortar" in pg.inner_text("#p-datos"), "chapa en 3 paños: chapas a cortar")
+    # «Nuevo» vuelve a la galería; abrir un trabajo guardado va directo al diseño
+    pg.click("#t-btn")
+    pg.wait_for_selector("#hoja-trabajos[open]")
+    pg.fill("#t-nombre", "Portón Gómez")
+    pg.click("#t-guardar")
+    pg.click("#t-nuevo")
+    pg.wait_for_selector("#p-galeria:not([hidden])")
+    control(item_portones(pg)["modelo"] == "", "Nuevo: vuelve a la galería")
+    pg.click("#t-btn")
+    pg.click(".t-abrir >> nth=0")
+    pg.wait_for_selector("#p-galeria", state="hidden")
+    pg.wait_for_timeout(600)
+    it = item_portones(pg)
+    control(it["modelo"] == "chapa_panos" and it["ancho"] == 4200 and "Chapa en 3 paños" in pg.inner_text("#p-modelo-barra"),
+            "abrir un trabajo: directo al diseño, con su modelo")
+    control(not errs, f"galería PRO: errores de JS {errs}")
+    ctx.close()
+    # PC: galería en 4 columnas, detalle al lado, barra arriba del formulario
+    ctx = b.new_context(viewport={"width": 1366, "height": 820})
+    pg = ctx.new_page()
+    pg.goto(base + "?pro=1#portones")
+    pg.wait_for_selector("#p-galeria:not([hidden])")
+    xs = sorted({round(pg.locator(".p-modelo").nth(i).bounding_box()["x"]) for i in range(8)})
+    control(len(xs) == 4, f"galería PC: 4 columnas ({xs})")
+    if cap:
+        pg.wait_for_timeout(800)
+        pg.screenshot(path=f"{cap}/pc_galeria.png")
+    pg.click("[data-modelo=rombos]")
+    img, txt = pg.locator(".p-det-img").bounding_box(), pg.locator(".p-det-txt").bounding_box()
+    control(txt["x"] > img["x"] + img["width"] - 1, "detalle PC: la imagen y el texto lado a lado")
+    pg.click("[data-acc=usar]")
+    pg.wait_for_selector("#p-galeria", state="hidden")
+    control(pg.locator(".b-datos #p-modelo-barra").count() == 1 and pg.is_visible("#p-modelo-barra") and pg.is_visible("#p-dibujo svg"),
+            "PC: la barra del modelo arriba del formulario y el dibujo a la derecha")
+    ctx.close()
+
 
 def main():
     ap = argparse.ArgumentParser()
@@ -1379,8 +1577,10 @@ def main():
             celular(b, base, a.capturas)
             instalar(b, base, a.capturas)
             portones_arriba(b, base)
+            galeria_demo(b, base, a.capturas)
             if os.path.isdir(os.path.join(RAIZ, "pro")):
                 hoja_portones(b, base, a.capturas)
+                galeria_pro(b, base, a.capturas)
             pc(b, base, a.capturas)
             if os.path.isdir(os.path.join(RAIZ, "pro")):
                 pro(b, base, a.capturas)

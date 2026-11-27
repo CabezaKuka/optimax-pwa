@@ -59,10 +59,13 @@ export const ITEM_DEF = {
   // solo PWA (26-nov, Max), portones con chapa ciega: paños a lo ancho (parantes = n_panos − 1, con el perfil de los
   // travesaños); travesaño entero de marco a marco, parantes cortados por tramo, todo a tope; una chapa por celda
   n_panos: 1,
+  // solo PWA (27-nov, Max): modelo de la galería del que se partió ("" = sin elegir: se muestra la galería; «libre» =
+  // diseño libre). Solo para la barra «Modelo: … · modificado»; el cálculo no lo usa (portones/modelos.js)
+  modelo: "",
 };
 /** Claves del ítem que la PC no tiene (las ignora al abrir el .nesting). */
 export const SOLO_PWA = ["trav_lado", "chapa_trav", "cruce", "frente_marco", "frente_trav", "frente_relleno",
-  "sob_lat", "sob_arr", "sob_abj", "holg_hueco", "trav_modo", "franja", "n_franja", "n_panos"];
+  "sob_lat", "sob_arr", "sob_abj", "holg_hueco", "trav_modo", "franja", "n_franja", "n_panos", "modelo"];
 
 /** Reja de ventana: ¿va sobrepuesta (sobresale de algún lado) o adentro del hueco? */
 export const rejaSobrepuesta = (it) => it.tipo === "reja_ventana" && (it.sob_lat > 0 || it.sob_arr > 0 || it.sob_abj > 0);
