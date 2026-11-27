@@ -20,6 +20,8 @@ modulos/guillotina.js         módulo Guillotina (tablero, piezas, planchas dibu
 guillotina/motor.js           cortes de guillotina de la DEMO (144 combinaciones fijas); la búsqueda completa es PRO
 modulos/portones.js           módulo Rejas y portones (tipo, medidas, perfiles, relleno, elevación con marcas y cotas, lista de corte, barras)
 portones/motor.js             elevación, piezas con su corte, marcas, barras, peso y cotas (portones.py); los portones y los costos son PRO
+portones/modelos.js           modelos de la galería (diseños de arranque de reja y portón): aplicar, «modificado»
+img/modelos/                  imágenes 3D de los modelos (tools/capturas_modelos.py, necesita pro/)
 barras/trabajador.js          Worker del optimizador completo de barras (PRO), para no trabar la pantalla
 licencia.js                   licencia PRO: «Entrar con WhatsApp» (cuenta = número, 2 equipos), clave OPWA1- por equipo (Ed25519, sin internet), código PRO cifrado (pro.bin)
 licencia-config.js            llave pública y dirección del bot (las escribe el generador de claves del repo privado)
@@ -40,6 +42,8 @@ tools/imagenes_figuras.py     imágenes del catálogo con el motor del escritori
 tests/comparar.mjs            compara la geometría JS contra tests/casos.json
 tools/volcar_portones.py      casos de Rejas y portones desde el escritorio → tests/casos_portones.json (--todos: los del PRO)
 tests/portones.mjs            compara el motor de portones (reja de ventana) contra tests/casos_portones.json
+tests/modelos.mjs             cada modelo de la galería se calcula en cada tipo (los portones, con pro/)
+tools/capturas_modelos.py     rehace img/modelos/ con la vista 3D de la app (correrlo si cambia el 3D o la lista de modelos)
 ```
 
 ## Probar

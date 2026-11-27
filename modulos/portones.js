@@ -4,10 +4,11 @@
 // PRO (repo privado): los portones (batiente 1 y 2 hojas, corredizo), barras con el optimizador completo (en un
 // Worker, para no trabar la pantalla) y los costos.
 import * as P from "../portones/motor.js";
+import * as M from "../portones/modelos.js";
 import { optimizarRapido, numero, med, miles } from "../barras/motor.js";
 import { corto } from "../geo/base.js";
 import { cargarPro, urlPro } from "../licencia.js";
-import { ponerContexto, abrirPro } from "../hoja-pro.js";
+import { ponerContexto, abrirPro, PRECIO } from "../hoja-pro.js";
 import { abrirSalida, activarBoton, cerrarSalida } from "../salida.js";
 import { armarTrabajos } from "../trabajos.js";
 import { abrir3D, cerrar3D } from "./portones3d.js";
@@ -96,8 +97,10 @@ export async function montar(cont) {
   });
   acomodarVista();
   ANGOSTA.addEventListener("change", acomodarVista);
+  armarGaleria();
   calcular();
   if (salidaPdf) activarBoton($("#p-pdf"), "Imprimir o guardar en PDF", guardarPdf);
+  if (!est.item.modelo) mostrarGaleria();              // sin modelo elegido (primera vez o «Nuevo»): la galería
 }
 
 // Celular y tablet (26-nov, Max, propuesta G): el dibujo arriba ocupa lo que queda de la pantalla y las opciones van en
@@ -131,7 +134,7 @@ function armarHoja() {
   vista.id = "p-vista-arriba";
   vista.className = "p-vista-arriba";
   vista.setAttribute("aria-live", "polite");
-  $(".b-datos .titulo-figura").after(vista);
+  $("#p-modelo-barra").after(vista);
   mover($("#p-demo"), vista);
   mover($("#p-error"), vista);
   mover($(".p-elev"), vista);
@@ -249,6 +252,7 @@ function guardarPdf() {
 
 export function desmontar() {
   ANGOSTA.removeEventListener("change", acomodarVista);
+  raiz?.classList.remove("p-en-galeria");
   removeEventListener("resize", alRedimensionar);
   document.body.classList.remove("modo-hoja");
   movidos = null;
@@ -281,9 +285,31 @@ const perfilSel = (k, rot) => `<div class="campo campo-perfil" data-k="${k}"><la
     </div></div></div>`;
 
 const PLANTILLA = `
+<section class="p-galeria" id="p-galeria" aria-label="Modelos de reja y portón" hidden>
+  <div class="p-gal-lista" id="p-gal-lista">
+    <div class="p-gal-cab">
+      <h1 class="p-gal-tit">Elegí un modelo</h1>
+      <button type="button" class="btn-sec btn-chico btn-quieto" id="p-gal-volver" hidden>Volver al diseño</button>
+    </div>
+    <p class="p-gal-sub">Después cambiás medidas, perfiles, travesaños y relleno.</p>
+    <div class="segmentos p-gal-pest" role="radiogroup" aria-label="Qué vas a hacer">
+      <label><input type="radio" name="p-gal-para" value="porton"><span>Portones</span></label>
+      <label><input type="radio" name="p-gal-para" value="reja"><span>Reja de ventana</span></label>
+    </div>
+    <p class="p-gal-ley" id="p-gal-ley"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5h.01"/></svg>
+      <span>Cada modelo sirve para <b>batiente de 1 o 2 hojas</b> y <b>corredizo</b>. El tipo lo elegís después.</span></p>
+    <ul class="p-modelos" id="p-modelos"></ul>
+  </div>
+  <div class="p-gal-det" id="p-gal-det" hidden></div>
+</section>
 <div class="app app-barras app-portones">
   <section class="b-datos" aria-label="Datos de la reja o el portón">
     <h1 class="titulo-figura solo-lector">Rejas y portones</h1>
+    <button type="button" class="p-modelo-barra" id="p-modelo-barra" hidden>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16v16H4ZM4 12h16M9 4v16M15 4v16"/></svg>
+      <span class="p-mb-txt"><b>Modelo:</b> <span id="p-mb-nom"></span></span><span class="p-mb-mod" id="p-mb-mod" hidden>· modificado</span>
+      <span class="p-mb-ir">Cambiar</span>
+    </button>
     <div class="grupo">
     <h2 class="sub">Tipo</h2>
     <div class="p-tarjetas p-tipos" id="p-tipos"></div>
@@ -666,6 +692,7 @@ function habilitar() {
   raiz.querySelector('label[for="p-ancho"]').textContent = reja ? "Ancho del hueco" : CAMPOS.ancho[0];
   raiz.querySelector('label[for="p-alto"]').textContent = reja ? "Alto del hueco" : CAMPOS.alto[0];
   notaReja();
+  ponerBarraModelo();
   $("#p-n_trav-rot").textContent = r === "horizontales" ? "Montantes" : "Travesaños";
   $("#p-trav_lado-rot").textContent = r === "horizontales" ? "Montantes" : "Travesaños";
   raiz.querySelector('label[for="p-perfil_trav"]').textContent = r === "horizontales" ? "Montantes"
@@ -750,10 +777,7 @@ function armarEventos() {
   $("#p-ampliar").addEventListener("click", abrirCompleta);
   $("#p-3d").addEventListener("click", () => {
     if (!calc?.resultados[0]) return;
-    abrir3D(calc.resultados[0], perfiles(), { espChapa: est.item.esp_chapa, piso: P.PORTONES.includes(est.item.tipo),
-      pasantes: pasantes(), travAtras: travAtras(), relleno: est.item.relleno, cruce: est.item.cruce,
-      chapaTrav: P.chapaATope(est.item) ? "a_tope" : "atras", tipo: est.item.tipo,
-      sobrepuesta: P.rejaSobrepuesta(est.item) });
+    abrir3D(calc.resultados[0], perfiles(), opciones3D(est.item));
   });
   $("#p-admin").addEventListener("click", abrirPerfiles);
   $("#hoja-perfiles").addEventListener("close", cerrarPerfiles);
@@ -1201,6 +1225,7 @@ async function cargarTrabajo(op) {
   if (items.length > 1) msgs.push(`El proyecto tiene ${items.length} rejas o portones: se abrió el primero («${items[0].nombre || P.TEXTO[items[0].tipo] || "Portón"}»). La PWA trabaja con uno por trabajo.`);
   // la PC guarda la medida de la reja; con los datos del hueco (solo PWA) ancho / alto vuelven a ser el hueco
   const item = P.itemDePC(P.normalizarItem({ ...ITEM_INICIAL, ...(items[0] || {}) }));
+  if (!item.modelo) item.modelo = M.LIBRE;            // trabajo de la PC o de antes de los modelos: va directo al diseño
   // perfiles del proyecto: el mismo (forma, medidas y barra) que ya está en la lista → se usa ese; si no, se agrega
   const cambio = {};
   let agregados = 0;
@@ -1237,7 +1262,152 @@ async function nuevoTrabajo() {
 }
 
 /** Barrotes pasantes (travesaños superpuestos) y si el travesaño va atrás de los barrotes (3D y orden del dibujo). */
-function pasantes() {
-  return P.sonPasantes(est.item);
+function pasantes(it = est.item) {
+  return P.sonPasantes(it);
 }
-const travAtras = () => pasantes() && est.item.trav_lado === "atras";
+const travAtras = (it = est.item) => pasantes(it) && it.trav_lado === "atras";
+/** Opciones de la vista 3D para un ítem (el del trabajo o el de un modelo de la galería). */
+const opciones3D = (it) => ({ espChapa: it.esp_chapa, piso: P.PORTONES.includes(it.tipo), pasantes: pasantes(it),
+  travAtras: travAtras(it), relleno: it.relleno, cruce: it.cruce, chapaTrav: P.chapaATope(it) ? "a_tope" : "atras",
+  tipo: it.tipo, sobrepuesta: P.rejaSobrepuesta(it) });
+
+// ------------------------------------------------------------------ galería de modelos (27-nov, Max)
+// Al entrar sin modelo elegido (primera vez o «Nuevo») y con «Cambiar» de la barra del modelo. Tarjetas con la imagen
+// del 3D (img/modelos/, tools/capturas_modelos.py); tocar una abre el detalle: la imagen grande, «Girar en 3D», qué trae
+// y «Usar este modelo» (carga el diseño y conserva medidas y perfiles). En la DEMO los modelos de portón muestran la
+// imagen y la compra (el cálculo de los portones es PRO); la reja de ventana se usa como siempre.
+let galPara = "porton";
+const ICONO_LIBRE = `<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M6 10h36v30H6Z"/><path d="M24 18v14M17 25h14"/></svg>`;
+const bloqueado = (para) => !pro && para === "porton";
+
+function armarGaleria() {
+  for (const r of raiz.querySelectorAll('input[name="p-gal-para"]')) {
+    r.addEventListener("change", () => { if (r.checked) { galPara = r.value; pintarGaleria(); } });
+  }
+  $("#p-gal-volver").addEventListener("click", ocultarGaleria);
+  $("#p-modelos").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-modelo]");
+    if (!b) return;
+    if (b.dataset.modelo === M.LIBRE) usarModelo(M.LIBRE);
+    else verModelo(b.dataset.modelo);
+  });
+  $("#p-gal-det").addEventListener("click", (e) => {
+    const acc = e.target.closest("[data-acc]")?.dataset.acc;
+    const id = $("#p-gal-det").dataset.modelo;
+    if (acc === "volver") verLista();
+    else if (acc === "usar") usarModelo(id);
+    else if (acc === "girar") girarModelo(id);
+    else if (acc === "reja") { galPara = "reja"; verLista(); pintarGaleria(); }
+  });
+  $("#p-modelo-barra").addEventListener("click", () => mostrarGaleria(true));
+}
+
+function mostrarGaleria(volver = false) {
+  galPara = est.item.modelo ? M.paraDe(est.item.tipo) : "porton";   // la primera vez, los portones
+  $("#p-gal-volver").hidden = !volver;
+  raiz.classList.add("p-en-galeria");
+  $("#p-galeria").hidden = false;
+  verLista();
+  pintarGaleria();
+  window.scrollTo(0, 0);
+}
+
+function ocultarGaleria() {
+  raiz.classList.remove("p-en-galeria");
+  $("#p-galeria").hidden = true;
+  cerrar3D();
+  requestAnimationFrame(() => { medirVista(); dibujar(); });
+  window.scrollTo(0, 0);
+}
+
+function verLista() {
+  $("#p-gal-det").hidden = true;
+  $("#p-gal-lista").hidden = false;
+}
+
+function pintarGaleria() {
+  for (const r of raiz.querySelectorAll('input[name="p-gal-para"]')) r.checked = r.value === galPara;
+  $("#p-gal-ley").hidden = galPara !== "porton";
+  const actual = est.item.modelo && M.paraDe(est.item.tipo) === galPara ? est.item.modelo : "";
+  const tarjeta = (id, img, nom, desc, extra = "") => `<li><button type="button" class="p-modelo${id === M.LIBRE ? " p-libre" : ""}${id === actual ? " elegido" : ""}" data-modelo="${id}"${id === actual ? ' aria-current="true"' : ""}>
+    <span class="p-modelo-img">${img}${extra}</span><span class="p-modelo-nom">${nom}</span><span class="p-modelo-desc">${desc}</span></button></li>`;
+  $("#p-modelos").innerHTML =
+    tarjeta(M.LIBRE, ICONO_LIBRE, "Diseño libre", "Arrancás con lo de siempre y lo armás como quieras.") +
+    M.modelosDe(galPara).map((m) => tarjeta(m.id,
+      `<img src="${M.imagenModelo(m.id, galPara)}" alt="" width="720" height="540" loading="lazy" decoding="async">`,
+      esc(m.nombre), esc(m.desc), bloqueado(galPara) ? '<span class="tag">PRO</span>' : "")).join("");
+}
+
+/** Lo que trae un modelo, en renglones «rótulo: valor». */
+function filasModelo(m) {
+  const c = { ...P.ITEM_DEF, ...m.cambios }, out = [["Relleno", P.TEXTO[c.relleno]]];
+  const horiz = c.relleno === "horizontales";
+  if (c.trav_modo === "doble") {
+    out.push(["Travesaños", "Doble al centro"], ["Franja libre", `${corto(c.franja, 1)} mm`]);
+    out.push(["Barrotes en la franja", c.n_franja ? String(c.n_franja) : "Ninguno"]);
+  } else {
+    out.push([horiz ? "Montantes" : "Travesaños", c.n_trav ? String(c.n_trav) : "Sin travesaños"]);
+  }
+  if (c.n_panos > 1) out.push(["Paños a lo ancho", String(c.n_panos)]);
+  if (c.armado === "pasantes" && c.n_trav > 0) out.push(["Armado", c.trav_lado === "atras" ? "Pasantes, travesaño atrás" : "Pasantes"]);
+  if (c.relleno === "chapa" && c.n_panos === 1 && c.n_trav > 0) out.push(["Travesaño", "Atrás de la chapa"]);
+  return out;
+}
+
+function verModelo(id) {
+  const m = M.modelo(id);
+  if (!m) return;
+  const det = $("#p-gal-det"), bloq = bloqueado(galPara);
+  det.dataset.modelo = id;
+  det.innerHTML = `<button type="button" class="btn-sec btn-chico btn-quieto p-det-volver" data-acc="volver">← Modelos</button>
+    <div class="p-det-cuerpo">
+      <figure class="p-det-img"><img src="${M.imagenModelo(id, galPara)}" alt="${esc(m.nombre)}" width="720" height="540">
+        ${bloq ? "" : `<button type="button" class="btn-3d p-det-girar" data-acc="girar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l8.5 4.75v9.5L12 21.5l-8.5-4.75v-9.5Z"/><path d="M3.5 7.25L12 12l8.5-4.75M12 12v9.5"/></svg>Girar en 3D</button>`}</figure>
+      <div class="p-det-txt">
+        <h2 class="p-det-tit">${esc(m.nombre)}</h2>
+        <p class="p-det-desc">${esc(m.desc)}</p>
+        <dl class="p-det-filas">${filasModelo(m).map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join("")}</dl>
+        <p class="nota">${galPara === "porton" ? "Sirve para batiente de 1 o 2 hojas y corredizo: el tipo lo elegís después. " : ""}Tus medidas y perfiles no cambian; todo se puede modificar después.</p>
+        <div class="p-det-acc">${bloq
+          ? `<button type="button" class="btn-prim p-det-pro" data-abre-pro="portones">Hacelo con la PRO · ${PRECIO}</button>
+             <p class="nota">En la versión de prueba: reja de ventana hasta ${miles(P.DEMO_LADOS[0])} × ${miles(P.DEMO_LADOS[1])} mm. <button type="button" class="enlace" data-acc="reja">Ver los modelos de reja</button></p>`
+          : `<button type="button" class="btn-prim" data-acc="usar">Usar este modelo</button>`}
+          <button type="button" class="btn-sec btn-quieto p-det-otro" data-acc="volver">Ver otro modelo</button></div>
+      </div>
+    </div>`;
+  $("#p-gal-lista").hidden = true;
+  det.hidden = false;
+  window.scrollTo(0, 0);
+}
+
+/** El ítem del trabajo con el modelo (en la DEMO, «Diseño libre» de la pestaña de portones queda en la reja). */
+const conModelo = (id) => M.aplicarModelo(est.item, id, id === M.LIBRE && bloqueado(galPara) ? "reja" : galPara);
+
+function usarModelo(id) {
+  if (id !== M.LIBRE && bloqueado(galPara)) { abrirPro("portones"); return; }
+  est.item = conModelo(id);
+  avisoDemo = "";
+  sel = null;
+  ocultarGaleria();
+  ponerValores();
+  programar(0);
+}
+
+/** «Girar en 3D» del detalle: el modelo sobre el trabajo actual (medidas y perfiles), sin cambiar el trabajo. */
+function girarModelo(id) {
+  const it = conModelo(id);
+  const c = P.calcular([it], perfiles(), num(est.corte, 3), optimizarRapido);
+  if (!c.resultados[0]) return;                       // con un error (p. ej. un perfil sin medidas) no hay qué mostrar
+  abrir3D(c.resultados[0], perfiles(), opciones3D(it));
+}
+
+/** Barra arriba del dibujo: «Modelo: … · modificado» y «Cambiar» (vuelve a la galería). */
+function ponerBarraModelo() {
+  const b = $("#p-modelo-barra");
+  if (!b) return;
+  const id = est.item.modelo;
+  b.hidden = !id;
+  if (!id) return;
+  $("#p-mb-nom").textContent = M.nombreModelo(id) || "Diseño libre";
+  $("#p-mb-mod").hidden = !M.modificado(est.item);
+}
