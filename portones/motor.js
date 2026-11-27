@@ -8,9 +8,9 @@
 // Cada pieza distinta (perfil + largo + corte) lleva una marca (letra y color). Barras en modo Despuntar: cada pieza se
 // corta a escuadra al largo punta a punta y las marcas se reparten después por largo.
 //
-// En este archivo (público) va la reja de ventana, que es lo que tiene la DEMO. Los tipos de portón (hojas, holguras,
-// herrajes) y los costos van en el repo privado: portones/tipos.js y portones/costos.js (se registran con
-// registrarTipos).
+// En este archivo (público) van todos los tipos (reja de ventana y portones: hojas, holguras, herrajes). Desde el
+// 27-nov (Max) la DEMO dibuja cualquier reja o portón y en 3D; la lista de corte, las barras y las cotas se ven solo
+// dentro de demoPermite (lo decide la interfaz). Los costos van en el repo privado (portones/tipos.js: costear).
 import { fijo, corto, pyRound } from "../geo/base.js";
 import { med, optimizarRapido, verificar as verificarBarras } from "../barras/motor.js";
 
@@ -578,11 +578,41 @@ export function demoPermite(it) {
   return DEMO_TIPOS.includes(it.tipo) && a <= DEMO_LADOS[0] + 1e-9 && b <= DEMO_LADOS[1] + 1e-9;
 }
 
-// ------------------------------------------------------------------ tipos (los portones se registran desde el PRO)
+// ------------------------------------------------------------------ tipos (port de portones.py: hojas_de y herrajes)
+const herrajesBatiente = (it, hojas) => {
+  const bis = hojas[0][3] > 1800 ? 3 : 2;
+  const out = [["Bisagras / pomeles", bis * hojas.length], ["Cerradura", 1]];
+  if (hojas.length === 2) out.push(["Pasador de piso", 1]);
+  return out;
+};
+
+/** Los tipos de portón: {id: {hojas(it), herrajes(it, hojas)}}. (Antes en el repo privado; el PRO los reexporta.) */
+export const TIPOS_PORTON = {
+  batiente_1: {
+    hojas: (it) => [[it.holg_lat, it.luz_piso, it.ancho - 2 * it.holg_lat, it.alto - it.luz_piso, "Hoja"]],
+    herrajes: herrajesBatiente,
+  },
+  batiente_2: {
+    hojas: (it) => {
+      const h = it.alto - it.luz_piso;
+      const w = (it.ancho - 2 * it.holg_lat - it.holg_centro) / 2;
+      return [[it.holg_lat, it.luz_piso, w, h, "Hoja izq."], [it.holg_lat + w + it.holg_centro, it.luz_piso, w, h, "Hoja der."]];
+    },
+    herrajes: herrajesBatiente,
+  },
+  // corredizo: la hoja cubre el vano y sobrepasa el lado de cierre en el solape
+  corredizo: {
+    hojas: (it) => [[0.0, it.luz_piso, it.ancho + it.solape, it.alto - it.luz_piso, "Hoja"]],
+    herrajes: (it) => [["Riel de piso (m)", red((2 * it.ancho + it.solape) / 1000, 2)], ["Ruedas", 2],
+      ["Guía superior con rodillos", 1], ["Recibidor / tope", 1], ["Cerradura", 1]],
+  },
+};
+
 const TIPOS_DEF = {
   reja_ventana: { hojas: (it) => [[...rejaHoja(it), "Hoja"]], herrajes: () => [] },
+  ...TIPOS_PORTON,
 };
-/** Agrega tipos {id: {hojas(it), herrajes(it, hojas)}} (los portones del repo privado). */
+/** Agrega o reemplaza tipos {id: {hojas(it), herrajes(it, hojas)}} (un pro.bin viejo todavía registra los portones). */
 export function registrarTipos(tipos) { Object.assign(TIPOS_DEF, tipos); }
 export const tipoDisponible = (t) => t in TIPOS_DEF;
 
